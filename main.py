@@ -582,6 +582,53 @@ def room_view(room, name):
         state = room["state"]
         role = state["roles"].get(name)
 
+        public = {
+            "phase": state["phase"],
+            "round": state["round"],
+            "alive": state["alive"],
+            "winner": state["winner"],
+            "last_result": state["last_result"],
+            "eliminated": state["eliminated"],
+            "votes_count": len(state["votes"]),
+            "players_count": len(state["alive"])
+        }
+
+        result["state"] = public
+        result["public_state"] = public
+        result["my_role"] = role
+        result["my_alive"] = name in state["alive"]
+
+        result["my_action_done"] = (
+            name in state["night_actions"]
+            if state["phase"] == "night"
+            else name in state["votes"]
+        )
+
+        result["my_check"] = state["private_checks"].get(name)
+
+        result["mafia_teammates"] = (
+            [
+                player for player in state["alive"]
+                if state["roles"][player] == "mafia"
+            ]
+            if role == "mafia" else []
+        )
+
+    return result
+    result = {
+        "code": room["code"],
+        "game": room["game"],
+        "host": room["host"],
+        "players": room["players"],
+        "open": room["open"],
+        "started": room["started"],
+        "state": room["state"]
+    }
+
+    if room["game"] == "mafia" and room["started"]:
+        state = room["state"]
+        role = state["roles"].get(name)
+
         result["my_role"] = role
         result["my_alive"] = name in state["alive"]
         result["my_action_done"] = (
