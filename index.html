@@ -252,17 +252,49 @@ function renderDurak(s,el){
  })));
 }
 
+
 function renderMafia(s,el){
- el.innerHTML="<h3>День "+(s.day||1)+" · "+esc(s.phase||"")+"</h3>"+
- "<p>Твоя роль показується приватно лише після окремого підключення.</p>"+
- "<p>Список гравців:</p>"+
- (s.players||[]).map(p=>
-  '<div class="player">'+esc(p.name)+" — "+(p.alive?"🟢 Живий":"💀 Вибув")+
-  '<div class="actions"><button onclick="mafiaAction(\\''+esc(p.name)+'\\')">Обрати</button></div></div>'
- ).join("");
- el.innerHTML+="<p>Обери гравця та натисни дію:</p>"+
- '<button onclick="sendMafia()">Відправити дію</button>';
+ el.innerHTML="";
+ const title=document.createElement("h3");
+ title.textContent="День "+(s.day||1)+" · "+(s.phase||"");
+ el.appendChild(title);
+
+ const role=document.createElement("p");
+ role.textContent=state.my_role
+  ? "Твоя роль: "+state.my_role
+  : "Очікуємо інформацію про твою роль";
+ el.appendChild(role);
+
+ (s.players||[]).forEach(p=>{
+  const card=document.createElement("div");
+  card.className="player";
+  card.textContent=p.name+" — "+(p.alive?"🟢 Живий":"💀 Вибув");
+
+  const btn=document.createElement("button");
+  btn.textContent="Обрати";
+  btn.onclick=()=>{
+   window.mafiaTarget=p.name;
+   $("message").textContent="Обрано: "+p.name;
+  };
+  card.appendChild(btn);
+  el.appendChild(card);
+ });
+
+ const sendBtn=document.createElement("button");
+ sendBtn.textContent="Відправити дію";
+ sendBtn.onclick=sendMafia;
+ el.appendChild(sendBtn);
  window.mafiaTarget=null;
+}
+
+function mafiaAction(name){
+ window.mafiaTarget=name;
+}
+
+function sendMafia(){
+ if(!window.mafiaTarget)return alert("Спочатку обери гравця");
+ const phase=state.state.phase;
+ send({action:phase==="night"?"night":"vote",target:window.mafiaTarget});
 }
 
 function mafiaAction(name){
