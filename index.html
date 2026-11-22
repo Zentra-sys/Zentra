@@ -3,395 +3,286 @@
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ZENTRA</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#090914;color:white;font-family:Arial,sans-serif}
-header{text-align:center;padding:22px;border-bottom:1px solid #292943}
-.logo{font-size:34px;font-weight:900;letter-spacing:6px;color:#a78bfa}
-#connection{font-size:12px;color:#aaa;margin-top:6px}
-main{max-width:700px;margin:22px auto;padding:12px}
-.panel{background:#151528;border:1px solid #303052;border-radius:17px;padding:19px;margin-bottom:15px}
-h2{color:#c4b5fd;margin-top:0}
-input,select{width:100%;padding:14px;margin:6px 0;background:#090914;border:1px solid #41416a;border-radius:10px;color:white;font-size:16px}
-button{padding:13px 16px;border:0;border-radius:10px;background:#7c3aed;color:white;font-weight:bold;cursor:pointer;margin:4px}
-button:disabled{opacity:.3}
-.full{width:100%}
-.secondary{background:#30304d}
+body{margin:0;background:#090d18;color:#f4f6ff;font-family:Arial,sans-serif}
+header{padding:20px;background:#111a2d;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:2}
+.logo{font-size:25px;font-weight:900;color:#8e9cff}
+main{max-width:850px;margin:auto;padding:18px}
+.card{background:#141e33;border:1px solid #293957;border-radius:17px;padding:18px;margin-bottom:15px}
+h2{margin-top:0}
+input,select{width:100%;padding:13px;border-radius:10px;border:1px solid #394968;background:#0b1425;color:white;margin:7px 0 12px}
+button{background:#7586ff;color:white;border:0;padding:12px 17px;border-radius:10px;font-weight:bold;cursor:pointer;margin:4px}
+button.secondary{background:#293957}
+button:disabled{opacity:.5}
+nav{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:15px}
+nav button{flex:1;min-width:90px}
 .hidden{display:none!important}
-.small{color:#aaa;font-size:13px}
-#board{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.cell{aspect-ratio:1;font-size:40px;background:#252541}
-.cards{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
-.card{background:#fff;color:#111;border-radius:9px;padding:12px 9px;font-size:20px;min-width:48px;min-height:65px;border:2px solid #ddd}
-.red{color:#dc2626}
-.selected{border:3px solid #a78bfa;transform:translateY(-5px)}
-.player{padding:10px;background:#24243d;border-radius:9px;margin:6px 0}
-.actions{display:flex;flex-wrap:wrap;gap:6px}
-#message{color:#c4b5fd;margin:12px 0;min-height:24px}
+.muted{color:#9eabc6}
+.big{font-size:30px;font-weight:bold;color:#9aa8ff}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+#board{display:grid;grid-template-columns:repeat(3,85px);gap:7px;justify-content:center;margin:20px}
+.cell{height:85px;font-size:30px;background:#263656}
 </style>
 </head>
 <body>
 <header>
- <div class="logo">ZENTRA</div>
- <div id="connection">Підключення...</div>
+<div class="logo">ZENTRA</div>
+<div id="status" class="muted">Підключення...</div>
 </header>
 <main>
-<section id="home">
- <div class="panel">
-  <h2>Створити кімнату</h2>
-  <input id="name" placeholder="Твоє ім'я" maxlength="20">
-  <select id="game">
-   <option value="durak">🃏 Дурень</option>
-   <option value="mafia">🕵️ Мафія</option>
-   <option value="poker">♠️ Покер</option>
-   <option value="ttt">❌ Хрестики-нулики</option>
-  </select>
-  <button class="full" onclick="createRoom()">Створити кімнату</button>
- </div>
- <div class="panel">
-  <h2>Приєднатися до кімнати</h2>
-  <input id="joinName" placeholder="Твоє ім'я" maxlength="20">
-  <input id="roomCode" placeholder="Код кімнати" maxlength="12">
-  <button class="full" onclick="joinRoom()">Увійти</button>
- </div>
+<section id="profileScreen" class="card">
+<h2>Твій профіль</h2>
+<p class="muted">Створи профіль або повернись до свого.</p>
+<input id="nickname" placeholder="Твій нікнейм" maxlength="24">
+<button onclick="saveProfile()">Увійти в ZENTRA</button>
+<p id="profileError" class="muted"></p>
 </section>
 
-<section id="lobby" class="hidden">
- <div class="panel">
-  <h2>Кімната ZENTRA</h2>
-  <p>Код: <b id="codeDisplay"></b></p>
-  <button class="secondary" onclick="copyCode()">Копіювати код</button>
-  <h3>Гравці</h3>
-  <div id="players"></div>
-  <p id="gameInfo" class="small"></p>
-  <button class="full" id="startBtn" onclick="startGame()">Почати гру</button>
-  <button class="full secondary" onclick="leaveRoom()">Вийти</button>
- </div>
- <div id="gamePanel" class="panel hidden">
-  <h2 id="gameTitle">Гра</h2>
-  <div id="message"></div>
-  <div id="gameContent"></div>
- </div>
+<section id="appScreen" class="hidden">
+<div class="card row">
+<div><div class="muted">Гравець</div><b id="playerName"></b></div>
+<div><div class="muted">Твої бали</div><div class="big" id="points">0</div></div>
+</div>
+
+<nav>
+<button onclick="showTab('home')">Головна</button>
+<button onclick="showTab('tasks')">Завдання</button>
+<button onclick="showTab('rooms')">Кімнати</button>
+<button onclick="showTab('lobbies')">Відкриті лобі</button>
+<button onclick="showTab('profile')">Профіль</button>
+</nav>
+
+<section id="tab-home" class="card">
+<h2>Вітаємо в ZENTRA!</h2>
+<p>Створюй кімнати, грай із друзями та заробляй бали.</p>
+<button onclick="showTab('rooms')">Створити кімнату</button>
+<button class="secondary" onclick="showTab('tasks')">Мої завдання</button>
+</section>
+
+<section id="tab-tasks" class="hidden">
+<div class="card">
+<h2>🎯 Щоденне завдання</h2>
+<p>Заходь у ZENTRA щодня та отримуй бали!</p>
+<div class="big" id="streak">0 / 7</div>
+<p class="muted">Твоя серія щоденних входів</p>
+<div id="dailyInfo"></div>
+<button id="claimButton" onclick="claimDaily()">Отримати нагороду за вхід</button>
+</div>
+<div class="card">
+<h2>🏆 Нагороди</h2>
+<p>Перший день — <b>10 балів</b></p>
+<p>Сьомий день — <b>50 балів</b></p>
+<p class="muted">Якщо пропустиш день, серія почнеться з першого дня.</p>
+</div>
+</section>
+
+<section id="tab-rooms" class="hidden">
+<div class="card">
+<h2>Створити кімнату</h2>
+<input id="roomName" placeholder="Твоє ім'я в кімнаті">
+<select id="game">
+<option value="ttt">Хрестики-нулики</option>
+<option value="durak">Дурень</option>
+<option value="mafia">Мафія</option>
+<option value="poker">Покер</option>
+</select>
+<label><input type="checkbox" id="openRoom" style="width:auto"> Відкрита кімната</label>
+<br><button onclick="createRoom()">Створити</button>
+</div>
+<div class="card">
+<h2>Приєднатися за кодом</h2>
+<input id="joinCode" placeholder="Код кімнати">
+<button onclick="joinRoom()">Приєднатися</button>
+</div>
+<div id="roomResult" class="card hidden"></div>
+</section>
+
+<section id="tab-lobbies" class="hidden">
+<div class="card">
+<h2>🌍 Відкриті лобі</h2>
+<button onclick="loadLobbies()">Оновити список</button>
+<div id="lobbyList">Завантаження...</div>
+</div>
+</section>
+
+<section id="tab-profile" class="hidden">
+<div class="card">
+<h2>Мій профіль</h2>
+<p>Нікнейм: <b id="profileName"></b></p>
+<p>Баланс: <b id="profilePoints"></b> балів</p>
+<button class="secondary" onclick="changeName()">Змінити нікнейм</button>
+</div>
+</section>
+
+<section id="gameScreen" class="card hidden">
+<h2 id="gameTitle">Кімната</h2>
+<p>Код кімнати: <b id="currentCode"></b></p>
+<p id="players"></p>
+<div id="gameArea"></div>
+<button onclick="startGame()">Почати гру</button>
+<button class="secondary" onclick="leaveRoom()">Вийти з кімнати</button>
+</section>
 </section>
 </main>
 
 <script>
 const API="https://zentra-1-1322.onrender.com";
-const $=id=>document.getElementById(id);
-let roomCode="",playerName="",game="",socket=null,state=null,selectedCard=null;
+let uid=localStorage.getItem("zentra_uid")||("u_"+crypto.randomUUID());
+localStorage.setItem("zentra_uid",uid);
+let profile=null, room=null, socket=null, currentName="";
 
-async function api(path,options={}){
- const r=await fetch(API+path,{
-  headers:{"Content-Type":"application/json"},
-  ...options
- });
- const d=await r.json().catch(()=>({}));
- if(!r.ok)throw Error(d.detail||"Помилка сервера");
- return d;
+async function request(path,options={}){
+ const r=await fetch(API+path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok)throw Error(data.detail||"Помилка сервера");
+ return data;
 }
 
-function setStatus(s,color="#4ade80"){
- $("connection").textContent=s;
- $("connection").style.color=color;
-}
-async function checkAPI(){
- try{await api("/");setStatus("● API підключено")}
- catch(e){setStatus("● Немає зв'язку","#f87171")}
-}
-checkAPI();
+function setStatus(t){document.getElementById("status").textContent=t}
 
-function getName(v){return (v||"").trim().slice(0,20)}
-
+async function init(){
+ try{
+  await request("/health");
+  setStatus("Сервер онлайн");
+  const p=await request("/api/profile/"+encodeURIComponent(uid));
+  profile=p;currentName=p.name;showApp();updateProfile();
+  await refreshDaily();
+ }catch(e){
+  setStatus("Сервер онлайн");
+ }
+}
+function showApp(){
+ document.getElementById("profileScreen").classList.add("hidden");
+ document.getElementById("appScreen").classList.remove("hidden");
+}
+function updateProfile(){
+ if(!profile)return;
+ document.getElementById("playerName").textContent=profile.name;
+ document.getElementById("profileName").textContent=profile.name;
+ document.getElementById("points").textContent=profile.points;
+ document.getElementById("profilePoints").textContent=profile.points;
+}
+async function saveProfile(){
+ const name=document.getElementById("nickname").value.trim();
+ if(!name)return alert("Введи нікнейм");
+ try{
+  profile=await request("/api/profile",{method:"POST",body:JSON.stringify({uid,name})});
+  currentName=profile.name;showApp();updateProfile();await refreshDaily();
+ }catch(e){document.getElementById("profileError").textContent=e.message}
+}
+function showTab(tab){
+ ["home","tasks","rooms","lobbies","profile"].forEach(x=>document.getElementById("tab-"+x).classList.toggle("hidden",x!==tab));
+ document.getElementById("gameScreen").classList.add("hidden");
+ if(tab==="lobbies")loadLobbies();
+}
+async function refreshDaily(){
+ try{
+  profile=await request("/api/profile/"+encodeURIComponent(uid));
+  updateProfile();
+  const n=profile.streak||0;
+  document.getElementById("streak").textContent=n+" / 7";
+  const last=profile.last_claim;
+  const today=new Date().toLocaleDateString("en-CA");
+  const claimed=last===today;
+  document.getElementById("claimButton").disabled=claimed;
+  document.getElementById("claimButton").textContent=claimed?"Сьогодні вже отримано":"Отримати нагороду за вхід";
+  document.getElementById("dailyInfo").textContent=claimed?"Ти вже отримав сьогоднішню нагороду!":"Сьогодні ще можна отримати нагороду.";
+ }catch(e){}
+}
+async function claimDaily(){
+ try{
+  const result=await request("/api/daily/"+encodeURIComponent(uid),{method:"POST"});
+  alert(result.message);
+  await refreshDaily();
+ }catch(e){alert(e.message)}
+}
 async function createRoom(){
- playerName=getName($("name").value);
- game=$("game").value;
- if(!playerName)return alert("Введи ім'я");
  try{
-  const d=await api("/api/rooms",{method:"POST",body:JSON.stringify({
-   game,player_name:playerName
-  })});
-  roomCode=d.code;
-  await openLobby();
+  const name=document.getElementById("roomName").value.trim()||currentName;
+  room=await request("/api/rooms",{method:"POST",body:JSON.stringify({name,game:document.getElementById("game").value,open:document.getElementById("openRoom").checked})});
+  enterRoom(room);
  }catch(e){alert(e.message)}
 }
-
 async function joinRoom(){
- playerName=getName($("joinName").value);
- roomCode=$("roomCode").value.trim().toUpperCase();
- if(!playerName||!roomCode)return alert("Введи ім'я та код");
  try{
-  const d=await api("/api/rooms/join",{method:"POST",body:JSON.stringify({
-   code:roomCode,player_name:playerName
-  })});
-  await openLobby();
+  const code=document.getElementById("joinCode").value.trim();
+  room=await request("/api/rooms/join",{method:"POST",body:JSON.stringify({code,name:currentName})});
+  enterRoom(room);
  }catch(e){alert(e.message)}
 }
-
-async function openLobby(){
- $("home").classList.add("hidden");
- $("lobby").classList.remove("hidden");
- $("codeDisplay").textContent=roomCode;
- connect();
- await refresh();
-}
-
-function connect(){
- if(socket)socket.close();
- const host=API.replace(/^https?:\/\//,"");
- socket=new WebSocket("wss://"+host+"/ws/"+encodeURIComponent(roomCode)+"?name="+encodeURIComponent(playerName));
- socket.onopen=()=>setStatus("● Онлайн");
- socket.onmessage=e=>{
-  const d=JSON.parse(e.data);
-  if(d.type==="error"){$("message").textContent=d.message;return}
-  if(d.type==="state"){
-   state=d;
-   game=d.game;
-   render();
-  }
- };
- socket.onclose=()=>setStatus("● З'єднання закрито","#f87171");
- socket.onerror=()=>setStatus("● Помилка з'єднання","#f87171");
-}
-
-async function refresh(){
+async function loadLobbies(){
+ const box=document.getElementById("lobbyList");
+ box.textContent="Завантаження...";
  try{
-  const d=await api("/api/rooms/"+encodeURIComponent(roomCode));
-  game=d.game;
-  renderPlayers(d);
- }catch(e){console.log(e)}
-}
-
-function renderPlayers(d){
- $("players").innerHTML=(d.players||[]).map((p,i)=>
-  '<div class="player">'+(p===d.host?"👑 ":"🎮 ")+esc(p)+'</div>'
- ).join("");
- $("gameInfo").textContent="Гра: "+game+" | Гравців: "+d.players.length;
- $("startBtn").disabled=d.started || d.host!==playerName;
- $("startBtn").textContent=d.started?"Гра почалася":"Почати гру";
-}
-
-async function startGame(){
- try{
-  await api("/api/rooms/"+encodeURIComponent(roomCode)+"/start",{
-   method:"POST",body:JSON.stringify({player_name:playerName})
+  const list=await request("/api/lobbies");
+  box.innerHTML="";
+  if(!list.length){box.textContent="Поки немає відкритих кімнат.";return}
+  list.forEach(r=>{
+   const div=document.createElement("div");div.className="card";
+   const title=document.createElement("b");title.textContent=r.game+" — "+r.code;
+   const info=document.createElement("p");info.textContent="Гравців: "+r.players.length;
+   const btn=document.createElement("button");btn.textContent="Приєднатися";
+   btn.onclick=async()=>{try{room=await request("/api/rooms/join",{method:"POST",body:JSON.stringify({code:r.code,name:currentName})});enterRoom(room)}catch(e){alert(e.message)}};
+   div.append(title,info,btn);box.append(div);
   });
- }catch(e){alert(e.message)}
+ }catch(e){box.textContent=e.message}
 }
-
-function send(action){
- if(!socket||socket.readyState!==WebSocket.OPEN)return alert("Немає зв'язку");
- socket.send(JSON.stringify(action));
+function enterRoom(r){
+ room=r;
+ document.getElementById("gameScreen").classList.remove("hidden");
+ document.getElementById("tab-rooms").classList.add("hidden");
+ document.getElementById("currentCode").textContent=r.code;
+ document.getElementById("gameTitle").textContent="Кімната — "+r.game;
+ updateRoom(r);
+ connectSocket();
 }
-
-function render(){
- if(!state)return;
- const s=state.state||{};
- $("gamePanel").classList.remove("hidden");
- renderPlayers(state);
- $("gameTitle").textContent={
-  durak:"🃏 Дурень",mafia:"🕵️ Мафія",
-  poker:"♠️ Покер",ttt:"❌ Хрестики-нулики"
- }[game]||"ZENTRA";
- $("message").textContent=s.message||s.winner&&("🏆 Переможець: "+s.winner)||"";
- const content=$("gameContent");
- content.innerHTML="";
-
- if(game==="durak")renderDurak(s,content);
- if(game==="mafia")renderMafia(s,content);
- if(game==="poker")renderPoker(s,content);
- if(game==="ttt")renderTTT(s,content);
+function updateRoom(r){
+ room=r;
+ document.getElementById("players").textContent="Гравці: "+r.players.join(", ");
+ const area=document.getElementById("gameArea");
+ area.innerHTML="";
+ if(r.game==="ttt"){
+  const board=document.createElement("div");board.id="board";
+  (r.state?.board||Array(9).fill("")).forEach((v,i)=>{
+   const b=document.createElement("button");b.className="cell";b.textContent=v||" ";
+   b.onclick=()=>move(i);board.append(b);
+  });
+  area.append(board);
+  if(r.state?.winner)area.append("Результат: "+(r.state.winner==="draw"?"Нічия":r.state.winner));
+ }else{
+  area.textContent="Ця гра поки очікує повної ігрової механіки.";
+ }
 }
-
-function renderTTT(s,el){
- el.innerHTML='<p>Хід: '+esc(s.turn||"")+'</p><div id="board"></div>';
- const board=el.querySelector("#board");
- (s.board||Array(9).fill("")).forEach((v,i)=>{
-  const b=document.createElement("button");
-  b.className="cell";b.textContent=v;
-  b.onclick=()=>send({index:i});
-  b.disabled=!!v||!!s.winner||s.draw;
-  board.appendChild(b);
- });
- if(s.draw)el.innerHTML+="<h3>Нічия!</h3>";
+function connectSocket(){
+ if(socket)socket.close();
+ socket=new WebSocket(API.replace("https","wss").replace("http","ws")+"/ws/"+room.code+"?name="+encodeURIComponent(currentName));
+ socket.onmessage=e=>{const r=JSON.parse(e.data);updateRoom(r);if(r.state?.winner)refreshDaily()};
+ socket.onclose=()=>{};
 }
-
-function cardButton(card,click){
- const b=document.createElement("button");
- b.className="card "+("♥♦".includes(card.slice(-1))?"red":"");
- b.textContent=card;
- b.onclick=click;
- return b;
+function move(index){
+ if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify({action:"move",index}));
 }
-
-function renderDurak(s,el){
- const handInfo=s.hands||{};
- el.innerHTML="<p>Козир: <b>"+esc(s.trump||"")+"</b></p>"+
- "<p>Колода: "+(s.deck_count||0)+" карт</p>"+
- "<p>Атакує: "+esc(s.attacker||"")+" | Захищається: "+esc(s.defender||"")+"</p>"+
- "<p>Карти гравців: "+Object.entries(handInfo).map(([n,c])=>esc(n)+": "+c).join(" · ")+"</p>"+
- "<h3>Стіл</h3><div id='table' class='cards'></div>"+
- "<h3>Твої карти</h3><div id='hand' class='cards'></div>"+
- "<div class='actions'><button onclick=\"send({action:'attack',card:selectedCard})\">Атакувати</button>"+
- "<button onclick=\"send({action:'defend',card:selectedCard})\">Відбити</button>"+
- "<button onclick=\"send({action:'take'})\">Взяти</button>"+
- "<button onclick=\"send({action:'pass'})\">Завершити атаку</button></div>";
- const table=el.querySelector("#table");
- (s.table||[]).forEach(x=>{
-  const span=document.createElement("span");
-  span.className="card";
-  span.textContent=x.attack+" / "+(x.defense||"—");
-  table.appendChild(span);
- });
- const hand=el.querySelector("#hand");
- const mine=state.private_hand||[];
- mine.forEach(card=>hand.appendChild(cardButton(card,()=>{
-  selectedCard=card;
-  render();
- })));
+async function startGame(){
+ try{const r=await request("/api/rooms/"+room.code+"/start",{method:"POST"});updateRoom(r)}catch(e){alert(e.message)}
 }
-
-
-function renderMafia(s,el){
- el.innerHTML="";
- const title=document.createElement("h3");
- title.textContent="День "+(s.day||1)+" · "+(s.phase||"");
- el.appendChild(title);
-
- const role=document.createElement("p");
- role.textContent=state.my_role
-  ? "Твоя роль: "+state.my_role
-  : "Очікуємо інформацію про твою роль";
- el.appendChild(role);
-
- (s.players||[]).forEach(p=>{
-  const card=document.createElement("div");
-  card.className="player";
-  card.textContent=p.name+" — "+(p.alive?"🟢 Живий":"💀 Вибув");
-
-  const btn=document.createElement("button");
-  btn.textContent="Обрати";
-  btn.onclick=()=>{
-   window.mafiaTarget=p.name;
-   $("message").textContent="Обрано: "+p.name;
-  };
-  card.appendChild(btn);
-  el.appendChild(card);
- });
-
- const sendBtn=document.createElement("button");
- sendBtn.textContent="Відправити дію";
- sendBtn.onclick=sendMafia;
- el.appendChild(sendBtn);
- window.mafiaTarget=null;
-}
-
-function mafiaAction(name){
- window.mafiaTarget=name;
-}
-
-function sendMafia(){
- if(!window.mafiaTarget)return alert("Спочатку обери гравця");
- const phase=state.state.phase;
- send({action:phase==="night"?"night":"vote",target:window.mafiaTarget});
-}
-
-function mafiaAction(name){
- window.mafiaTarget=name;
- $("message").textContent="Обрано: "+name;
-}
-function sendMafia(){
- if(!window.mafiaTarget)return alert("Спочатку обери гравця");
- const phase=state.state.phase;
- send({action:phase==="night"?"night":"vote",target:window.mafiaTarget});
-}
-n 
-
-function renderPoker(s,el){
- el.innerHTML="";
-
- const pot=document.createElement("p");
- pot.textContent="Банк: "+(s.pot||0)+" фішок";
- el.appendChild(pot);
-
- const community=document.createElement("div");
- community.className="cards";
- (s.community||[]).forEach(c=>{
-  community.appendChild(cardButton(c,()=>{}));
- });
- el.appendChild(community);
-
- const title=document.createElement("h3");
- title.textContent="Гравці";
- el.appendChild(title);
-
- (s.players||[]).forEach(p=>{
-  const div=document.createElement("div");
-  div.className="player";
-  div.textContent=p.name+" — "+p.chips+" фішок "+(p.folded?"(пас)":"");
-  el.appendChild(div);
- });
-
- const cardsTitle=document.createElement("h3");
- cardsTitle.textContent="Твої карти";
- el.appendChild(cardsTitle);
-
- const myCards=document.createElement("div");
- myCards.className="cards";
- (s.my_cards||[]).forEach(c=>{
-  myCards.appendChild(cardButton(c,()=>{}));
- });
- el.appendChild(myCards);
-
- const actions=document.createElement("div");
- actions.className="actions";
-
- [
-  ["Чек",{action:"check"}],
-  ["Зрівняти",{action:"call"}],
-  ["Пас",{action:"fold"}]
- ].forEach(([label,data])=>{
-  const b=document.createElement("button");
-  b.textContent=label;
-  b.onclick=()=>send(data);
-  actions.appendChild(b);
- });
-
- const raise=document.createElement("button");
- raise.textContent="Підняти";
- raise.onclick=raiseBet;
- actions.appendChild(raise);
- el.appendChild(actions);
-
- const turn=document.createElement("p");
- turn.textContent="Хід: "+(s.turn||"");
- el.appendChild(turn);
-}
-
-
-function raiseBet(){
- const amount=Number(prompt("На скільки підняти ставку?", "50"));
- if(Number.isInteger(amount)&&amount>0)send({action:"raise",amount});
-}
-
-function esc(v){
- return String(v??"").replace(/[&<>"']/g,c=>({
- "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
- }[c]));
-}
-
-function copyCode(){
- navigator.clipboard.writeText(roomCode).then(()=>alert("Код скопійовано"));
-}
-
 function leaveRoom(){
  if(socket)socket.close();
- socket=null;state=null;roomCode="";
- $("lobby").classList.add("hidden");
- $("gamePanel").classList.add("hidden");
- $("home").classList.remove("hidden");
+ room=null;
+ document.getElementById("gameScreen").classList.add("hidden");
+ showTab("rooms");
 }
+async function changeName(){
+ const name=prompt("Новий нікнейм:",currentName);
+ if(!name?.trim())return;
+ try{
+  profile=await request("/api/profile",{method:"POST",body:JSON.stringify({uid,name:name.trim()})});
+  currentName=profile.name;updateProfile();
+ }catch(e){alert(e.message)}
+}
+init();
 </script>
 </body>
 </html>
