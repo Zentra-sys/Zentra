@@ -66,8 +66,40 @@ def home():
 def health():
     return {"ok": True, "rooms": len(rooms)}
 
+
 @app.post("/api/profile")
 def profile(data: Profile):
+    uid = data.uid.strip()
+    name = data.name.strip()[:24]
+
+    if not uid or not name:
+        raise HTTPException(400, "Вкажи нікнейм")
+
+    with db() as con:
+        existing = con.execute(
+            "SELECT uid FROM users WHERE lower(name)=lower(?) AND uid!=?",
+            (name, uid)
+        ).fetchone()
+
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail="Цей нікнейм уже зайнятий! Обери інший."
+            )
+
+        con.execute(
+            "INSERT INTO users(uid,name) VALUES(?,?) "
+            "ON CONFLICT(uid) DO UPDATE SET name=excluded.name",
+            (uid, name)
+        )
+
+        user = con.execute(
+            "SELECT * FROM users WHERE uid=?",
+            (uid,)
+        ).fetchone()
+
+    return dict(user)
+
     uid = data.uid.strip()
     name = data.name.strip()[:24]
     if not uid or not name:
