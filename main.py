@@ -340,7 +340,7 @@ async def start_room(code: str):
         )
 
     await broadcast(code)
-    return room
+return {"ok": True, "started": True}
 
 
 def mafia_finish(room):
