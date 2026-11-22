@@ -3,281 +3,321 @@
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ZENTRA</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#090914;color:#fff;font-family:Arial,sans-serif}
-header{padding:22px;text-align:center;border-bottom:1px solid #292943}
-.logo{font-size:32px;font-weight:900;letter-spacing:5px;color:#a78bfa}
-.status{font-size:12px;color:#9ca3af;margin-top:7px}
-main{max-width:650px;margin:25px auto;padding:15px}
-.panel{background:#151528;border:1px solid #303052;border-radius:18px;padding:20px;margin-bottom:16px}
-h2{margin-top:0;color:#c4b5fd}
-input,select{width:100%;padding:14px;margin:7px 0;background:#090914;border:1px solid #41416a;border-radius:10px;color:white;font-size:16px}
-button{padding:14px;border:0;border-radius:11px;background:#7c3aed;color:white;font-weight:bold;font-size:15px;cursor:pointer;margin:5px 0}
-button:hover{background:#6d28d9}
-button:disabled{opacity:.35;cursor:not-allowed}
+body{margin:0;background:#090914;color:white;font-family:Arial,sans-serif}
+header{text-align:center;padding:22px;border-bottom:1px solid #292943}
+.logo{font-size:34px;font-weight:900;letter-spacing:6px;color:#a78bfa}
+#connection{font-size:12px;color:#aaa;margin-top:6px}
+main{max-width:700px;margin:22px auto;padding:12px}
+.panel{background:#151528;border:1px solid #303052;border-radius:17px;padding:19px;margin-bottom:15px}
+h2{color:#c4b5fd;margin-top:0}
+input,select{width:100%;padding:14px;margin:6px 0;background:#090914;border:1px solid #41416a;border-radius:10px;color:white;font-size:16px}
+button{padding:13px 16px;border:0;border-radius:10px;background:#7c3aed;color:white;font-weight:bold;cursor:pointer;margin:4px}
+button:disabled{opacity:.3}
 .full{width:100%}
 .secondary{background:#30304d}
 .hidden{display:none!important}
-#board{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}
-.cell{aspect-ratio:1;background:#24243d;border:1px solid #55557b;border-radius:13px;font-size:42px;font-weight:bold;color:#c4b5fd}
-.players{color:#c4b5fd;line-height:1.8}
-#message{color:#a78bfa;min-height:24px;margin-top:12px}
 .small{color:#aaa;font-size:13px}
+#board{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cell{aspect-ratio:1;font-size:40px;background:#252541}
+.cards{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.card{background:#fff;color:#111;border-radius:9px;padding:12px 9px;font-size:20px;min-width:48px;min-height:65px;border:2px solid #ddd}
+.red{color:#dc2626}
+.selected{border:3px solid #a78bfa;transform:translateY(-5px)}
+.player{padding:10px;background:#24243d;border-radius:9px;margin:6px 0}
+.actions{display:flex;flex-wrap:wrap;gap:6px}
+#message{color:#c4b5fd;margin:12px 0;min-height:24px}
 </style>
 </head>
 <body>
 <header>
  <div class="logo">ZENTRA</div>
- <div class="status" id="connection">Підключення...</div>
+ <div id="connection">Підключення...</div>
 </header>
-
 <main>
 <section id="home">
  <div class="panel">
   <h2>Створити кімнату</h2>
   <input id="name" placeholder="Твоє ім'я" maxlength="20">
   <select id="game">
+   <option value="durak">🃏 Дурень</option>
+   <option value="mafia">🕵️ Мафія</option>
+   <option value="poker">♠️ Покер</option>
    <option value="ttt">❌ Хрестики-нулики</option>
-   <option value="mafia">🕵️ Мафія (лобі)</option>
-   <option value="durak">🃏 Дурень (лобі)</option>
-   <option value="poker">♠️ Покер (лобі)</option>
   </select>
   <button class="full" onclick="createRoom()">Створити кімнату</button>
  </div>
-
  <div class="panel">
-  <h2>Приєднатися</h2>
+  <h2>Приєднатися до кімнати</h2>
   <input id="joinName" placeholder="Твоє ім'я" maxlength="20">
   <input id="roomCode" placeholder="Код кімнати" maxlength="12">
-  <button class="full" onclick="joinRoom()">Увійти в кімнату</button>
+  <button class="full" onclick="joinRoom()">Увійти</button>
  </div>
 </section>
 
 <section id="lobby" class="hidden">
  <div class="panel">
   <h2>Кімната ZENTRA</h2>
-  <p>Код кімнати: <strong id="codeDisplay"></strong></p>
-  <button class="secondary" onclick="copyCode()">Скопіювати код</button>
+  <p>Код: <b id="codeDisplay"></b></p>
+  <button class="secondary" onclick="copyCode()">Копіювати код</button>
   <h3>Гравці</h3>
-  <div class="players" id="players">Очікування...</div>
-  <p class="small" id="gameInfo"></p>
+  <div id="players"></div>
+  <p id="gameInfo" class="small"></p>
   <button class="full" id="startBtn" onclick="startGame()">Почати гру</button>
-  <button class="full secondary" onclick="leaveRoom()">Вийти з кімнати</button>
+  <button class="full secondary" onclick="leaveRoom()">Вийти</button>
  </div>
- <div class="panel hidden" id="gamePanel">
-  <h2>❌ Хрестики-нулики</h2>
-  <div id="turnInfo">Очікування гравців...</div>
-  <div id="board"></div>
+ <div id="gamePanel" class="panel hidden">
+  <h2 id="gameTitle">Гра</h2>
   <div id="message"></div>
+  <div id="gameContent"></div>
  </div>
 </section>
 </main>
 
 <script>
-const API = "https://zentra-1-1322.onrender.com";
+const API="https://zentra-1-1322.onrender.com";
+const $=id=>document.getElementById(id);
+let roomCode="",playerName="",game="",socket=null,state=null,selectedCard=null;
 
-let roomCode = "";
-let playerName = "";
-let socket = null;
-let currentGame = "";
-let latestState = null;
-
-const $ = id => document.getElementById(id);
-
-async function request(path, options={}) {
- const response = await fetch(API + path, {
-  headers: {"Content-Type":"application/json"},
+async function api(path,options={}){
+ const r=await fetch(API+path,{
+  headers:{"Content-Type":"application/json"},
   ...options
  });
- const data = await response.json().catch(()=>({}));
- if (!response.ok) throw new Error(data.detail || "Помилка сервера");
- return data;
+ const d=await r.json().catch(()=>({}));
+ if(!r.ok)throw Error(d.detail||"Помилка сервера");
+ return d;
 }
 
+function setStatus(s,color="#4ade80"){
+ $("connection").textContent=s;
+ $("connection").style.color=color;
+}
 async function checkAPI(){
- try{
-  await request("/");
-  $("connection").textContent = "● API підключено";
-  $("connection").style.color = "#4ade80";
- }catch(e){
-  $("connection").textContent = "● Немає зв'язку з API";
-  $("connection").style.color = "#f87171";
- }
+ try{await api("/");setStatus("● API підключено")}
+ catch(e){setStatus("● Немає зв'язку","#f87171")}
 }
 checkAPI();
 
-function getName(value){
- return (value || "").trim().slice(0,20);
-}
+function getName(v){return (v||"").trim().slice(0,20)}
 
 async function createRoom(){
- playerName = getName($("name").value);
- currentGame = $("game").value;
-
- if(!playerName) return alert("Введи своє ім'я");
-
+ playerName=getName($("name").value);
+ game=$("game").value;
+ if(!playerName)return alert("Введи ім'я");
  try{
-  const data = await request("/api/rooms",{
-   method:"POST",
-   body:JSON.stringify({
-    game:currentGame,
-    player_name:playerName,
-    private:false,
-    max_players:2
-   })
-  });
-  roomCode = data.code;
-  openLobby();
- }catch(e){alert(e.message);}
+  const d=await api("/api/rooms",{method:"POST",body:JSON.stringify({
+   game,player_name:playerName
+  })});
+  roomCode=d.code;
+  await openLobby();
+ }catch(e){alert(e.message)}
 }
 
 async function joinRoom(){
- playerName = getName($("joinName").value);
- roomCode = $("roomCode").value.trim().toUpperCase();
-
- if(!playerName || !roomCode) return alert("Введи ім'я та код кімнати");
-
+ playerName=getName($("joinName").value);
+ roomCode=$("roomCode").value.trim().toUpperCase();
+ if(!playerName||!roomCode)return alert("Введи ім'я та код");
  try{
-  const data = await request("/api/rooms/join",{
-   method:"POST",
-   body:JSON.stringify({code:roomCode,player_name:playerName})
-  });
+  const d=await api("/api/rooms/join",{method:"POST",body:JSON.stringify({
+   code:roomCode,player_name:playerName
+  })});
   await openLobby();
- }catch(e){alert(e.message);}
+ }catch(e){alert(e.message)}
 }
 
 async function openLobby(){
  $("home").classList.add("hidden");
  $("lobby").classList.remove("hidden");
- $("codeDisplay").textContent = roomCode;
- connectSocket();
- await refreshRoom();
+ $("codeDisplay").textContent=roomCode;
+ connect();
+ await refresh();
 }
 
-function connectSocket(){
- if(socket) socket.close();
-
- const protocol = API.startsWith("https") ? "wss://" : "ws://";
- const host = API.replace(/^https?:\/\//,"");
-
- socket = new WebSocket(
-  protocol + host + "/ws/" + encodeURIComponent(roomCode) +
-  "?name=" + encodeURIComponent(playerName)
- );
-
- socket.onopen = ()=>{
-  $("connection").textContent = "● Онлайн";
-  $("connection").style.color = "#4ade80";
+function connect(){
+ if(socket)socket.close();
+ const host=API.replace(/^https?:\/\//,"");
+ socket=new WebSocket("wss://"+host+"/ws/"+encodeURIComponent(roomCode)+"?name="+encodeURIComponent(playerName));
+ socket.onopen=()=>setStatus("● Онлайн");
+ socket.onmessage=e=>{
+  const d=JSON.parse(e.data);
+  if(d.type==="error"){$("message").textContent=d.message;return}
+  if(d.type==="state"){
+   state=d;
+   game=d.game;
+   render();
+  }
  };
-
- socket.onmessage = event=>{
-  try{
-   const data = JSON.parse(event.data);
-   if(data.type === "state"){
-    latestState = data;
-    renderState(data);
-   }else{
-    refreshRoom();
-   }
-  }catch(e){console.log(e);}
- };
-
- socket.onclose = ()=>{
-  $("connection").textContent = "● З'єднання закрито";
-  $("connection").style.color = "#f87171";
- };
-
- socket.onerror = ()=>console.log("WebSocket error");
+ socket.onclose=()=>setStatus("● З'єднання закрито","#f87171");
+ socket.onerror=()=>setStatus("● Помилка з'єднання","#f87171");
 }
 
-async function refreshRoom(){
+async function refresh(){
  try{
-  const data = await request("/api/rooms/" + encodeURIComponent(roomCode));
-  currentGame = data.game || currentGame;
+  const d=await api("/api/rooms/"+encodeURIComponent(roomCode));
+  game=d.game;
+  renderPlayers(d);
+ }catch(e){console.log(e)}
+}
 
-  $("players").innerHTML = (data.players || [])
-   .map((p,i)=>`${i===0?"👑":"🎮"} ${escapeHTML(typeof p==="string"?p:p.name || "Гравець")}`)
-   .join("<br>") || "Поки немає гравців";
-
-  $("gameInfo").textContent = "Гра: " + currentGame;
-  $("startBtn").disabled = currentGame !== "ttt" || (data.players || []).length < 2;
-  $("startBtn").textContent = currentGame === "ttt"
-   ? "Почати гру"
-   : "Ця гра ще готується";
-
- }catch(e){console.log(e);}
+function renderPlayers(d){
+ $("players").innerHTML=(d.players||[]).map((p,i)=>
+  '<div class="player">'+(p===d.host?"👑 ":"🎮 ")+esc(p)+'</div>'
+ ).join("");
+ $("gameInfo").textContent="Гра: "+game+" | Гравців: "+d.players.length;
+ $("startBtn").disabled=d.started || d.host!==playerName;
+ $("startBtn").textContent=d.started?"Гра почалася":"Почати гру";
 }
 
 async function startGame(){
- if(currentGame !== "ttt") return;
  try{
-  await request("/api/rooms/" + encodeURIComponent(roomCode) + "/start",{
-   method:"POST",
-   body:JSON.stringify({player_name:playerName})
+  await api("/api/rooms/"+encodeURIComponent(roomCode)+"/start",{
+   method:"POST",body:JSON.stringify({player_name:playerName})
   });
-  await refreshRoom();
- }catch(e){alert(e.message);}
+ }catch(e){alert(e.message)}
 }
 
-function renderState(data){
- const state = data.state || data;
- const board = state.board || data.board || Array(9).fill("");
-
- if(currentGame === "ttt" || state.game === "ttt"){
-  $("gamePanel").classList.remove("hidden");
-  $("board").innerHTML = "";
-
-  for(let i=0;i<9;i++){
-   const cell = document.createElement("button");
-   cell.className = "cell";
-   cell.textContent = board[i] || "";
-   cell.disabled = !!board[i] || !!state.winner || !!state.draw;
-   cell.onclick = ()=>makeMove(i);
-   $("board").appendChild(cell);
-  }
-
-  $("turnInfo").textContent = state.turn
-   ? "Хід: " + state.turn
-   : "Гра триває";
-
-  $("message").textContent = state.winner
-   ? "🏆 Переможець: " + state.winner
-   : state.draw ? "🤝 Нічия!" : "";
- }
- refreshRoom();
+function send(action){
+ if(!socket||socket.readyState!==WebSocket.OPEN)return alert("Немає зв'язку");
+ socket.send(JSON.stringify(action));
 }
 
-function makeMove(index){
- if(!socket || socket.readyState !== WebSocket.OPEN){
-  return alert("Немає з'єднання з кімнатою");
- }
- socket.send(JSON.stringify({index:index}));
+function render(){
+ if(!state)return;
+ const s=state.state||{};
+ $("gamePanel").classList.remove("hidden");
+ renderPlayers(state);
+ $("gameTitle").textContent={
+  durak:"🃏 Дурень",mafia:"🕵️ Мафія",
+  poker:"♠️ Покер",ttt:"❌ Хрестики-нулики"
+ }[game]||"ZENTRA";
+ $("message").textContent=s.message||s.winner&&("🏆 Переможець: "+s.winner)||"";
+ const content=$("gameContent");
+ content.innerHTML="";
+
+ if(game==="durak")renderDurak(s,content);
+ if(game==="mafia")renderMafia(s,content);
+ if(game==="poker")renderPoker(s,content);
+ if(game==="ttt")renderTTT(s,content);
+}
+
+function renderTTT(s,el){
+ el.innerHTML='<p>Хід: '+esc(s.turn||"")+'</p><div id="board"></div>';
+ const board=el.querySelector("#board");
+ (s.board||Array(9).fill("")).forEach((v,i)=>{
+  const b=document.createElement("button");
+  b.className="cell";b.textContent=v;
+  b.onclick=()=>send({index:i});
+  b.disabled=!!v||!!s.winner||s.draw;
+  board.appendChild(b);
+ });
+ if(s.draw)el.innerHTML+="<h3>Нічия!</h3>";
+}
+
+function cardButton(card,click){
+ const b=document.createElement("button");
+ b.className="card "+("♥♦".includes(card.slice(-1))?"red":"");
+ b.textContent=card;
+ b.onclick=click;
+ return b;
+}
+
+function renderDurak(s,el){
+ const handInfo=s.hands||{};
+ el.innerHTML="<p>Козир: <b>"+esc(s.trump||"")+"</b></p>"+
+ "<p>Колода: "+(s.deck_count||0)+" карт</p>"+
+ "<p>Атакує: "+esc(s.attacker||"")+" | Захищається: "+esc(s.defender||"")+"</p>"+
+ "<p>Карти гравців: "+Object.entries(handInfo).map(([n,c])=>esc(n)+": "+c).join(" · ")+"</p>"+
+ "<h3>Стіл</h3><div id='table' class='cards'></div>"+
+ "<h3>Твої карти</h3><div id='hand' class='cards'></div>"+
+ "<div class='actions'><button onclick=\"send({action:'attack',card:selectedCard})\">Атакувати</button>"+
+ "<button onclick=\"send({action:'defend',card:selectedCard})\">Відбити</button>"+
+ "<button onclick=\"send({action:'take'})\">Взяти</button>"+
+ "<button onclick=\"send({action:'pass'})\">Завершити атаку</button></div>";
+ const table=el.querySelector("#table");
+ (s.table||[]).forEach(x=>{
+  const span=document.createElement("span");
+  span.className="card";
+  span.textContent=x.attack+" / "+(x.defense||"—");
+  table.appendChild(span);
+ });
+ const hand=el.querySelector("#hand");
+ const mine=state.private_hand||[];
+ mine.forEach(card=>hand.appendChild(cardButton(card,()=>{
+  selectedCard=card;
+  render();
+ })));
+}
+
+function renderMafia(s,el){
+ el.innerHTML="<h3>День "+(s.day||1)+" · "+esc(s.phase||"")+"</h3>"+
+ "<p>Твоя роль показується приватно лише після окремого підключення.</p>"+
+ "<p>Список гравців:</p>"+
+ (s.players||[]).map(p=>
+  '<div class="player">'+esc(p.name)+" — "+(p.alive?"🟢 Живий":"💀 Вибув")+
+  '<div class="actions"><button onclick="mafiaAction(\\''+esc(p.name)+'\\')">Обрати</button></div></div>'
+ ).join("");
+ el.innerHTML+="<p>Обери гравця та натисни дію:</p>"+
+ '<button onclick="sendMafia()">Відправити дію</button>';
+ window.mafiaTarget=null;
+}
+
+function mafiaAction(name){
+ window.mafiaTarget=name;
+ $("message").textContent="Обрано: "+name;
+}
+function sendMafia(){
+ if(!window.mafiaTarget)return alert("Спочатку обери гравця");
+ const phase=state.state.phase;
+ send({action:phase==="night"?"night":"vote",target:window.mafiaTarget});
+}
+
+function renderPoker(s,el){
+ el.innerHTML="<p>Банк: "+(s.pot||0)+" фішок</p>"+
+ "<p>Спільні карти:</p><div class='cards'>"+
+ (s.community||[]).map(c=>"<span class='card'>"+esc(c)+"</span>").join("")+
+ "</div><h3>Гравці</h3>"+
+ (s.players||[]).map(p=>
+  '<div class="player">'+esc(p.name)+" — "+p.chips+" фішок "+
+  (p.folded?"(пас)":"")+
+  "</div>"
+ ).join("")+
+ '<h3>Твої карти</h3><div class="cards" id="myCards"></div>'+
+ '<div class="actions">'+
+ '<button onclick="send({action:\\'check\\'})">Чек</button>'+
+ '<button onclick="send({action:\\'call\\'})">Зрівняти</button>'+
+ '<button onclick="raiseBet()">Підняти</button>'+
+ '<button onclick="send({action:\\'fold\\'})">Пас</button></div>'+
+ '<p>Хід: '+esc(s.turn||"")+'</p>';
+ const me=(s.players||[]).find(p=>p.name===playerName);
+ const box=el.querySelector("#myCards");
+ (me?.cards||[]).forEach(c=>box.appendChild(cardButton(c,()=>{})));
+}
+
+function raiseBet(){
+ const amount=Number(prompt("На скільки підняти ставку?", "50"));
+ if(Number.isInteger(amount)&&amount>0)send({action:"raise",amount});
+}
+
+function esc(v){
+ return String(v??"").replace(/[&<>"']/g,c=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ }[c]));
 }
 
 function copyCode(){
- navigator.clipboard.writeText(roomCode)
-  .then(()=>alert("Код скопійовано!"))
-  .catch(()=>alert("Код кімнати: " + roomCode));
+ navigator.clipboard.writeText(roomCode).then(()=>alert("Код скопійовано"));
 }
 
 function leaveRoom(){
- if(socket) socket.close();
- socket = null;
- roomCode = "";
- latestState = null;
+ if(socket)socket.close();
+ socket=null;state=null;roomCode="";
  $("lobby").classList.add("hidden");
  $("gamePanel").classList.add("hidden");
  $("home").classList.remove("hidden");
-}
-
-function escapeHTML(value){
- return String(value).replace(/[&<>"']/g,c=>({
-  "&":"&amp;","<":"&lt;",">":"&gt;",
-  '"':"&quot;","'":"&#39;"
- }[c]));
 }
 </script>
 </body>
