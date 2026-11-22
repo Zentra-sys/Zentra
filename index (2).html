@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>ZENTRA</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root {
+  --bg:#09090e;
+  --panel:#14141e;
+  --purple:#8b5cf6;
+  --muted:#9291a5;
+  --border:#282638;
+}
+* {box-sizing:border-box}
+body {
+  margin:0;
+  padding:22px 16px 100px;
+  background:var(--bg);
+  color:#fff;
+  font-family:Arial,sans-serif;
+}
+header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin:8px 0 28px;
+}
+.logo {
+  font-size:27px;
+  font-weight:900;
+  letter-spacing:4px;
+  color:#c4a5ff;
+}
+.profile {
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:10px 13px;
+  background:var(--panel);
+}
+h1 {font-size:25px;margin:0 0 8px}
+.subtitle {color:var(--muted);font-size:14px}
+.balance {
+  margin:22px 0;
+  padding:19px;
+  border:1px solid #44316b;
+  border-radius:19px;
+  background:linear-gradient(120deg,#24163d,#11111a 75%);
+}
+.balance small {color:#c5b1ee}
+.balance strong {display:block;font-size:26px;margin-top:8px}
+.section-title {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin:26px 0 14px;
+  font-size:18px;
+  font-weight:bold;
+}
+.games {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+}
+.game {
+  padding:18px 13px;
+  min-height:118px;
+  border:1px solid var(--border);
+  border-radius:17px;
+  background:var(--panel);
+  text-align:left;
+  color:white;
+}
+.game .emoji {font-size:27px}
+.game strong {display:block;margin-top:13px;font-size:15px}
+.game small {color:var(--muted)}
+.action {
+  width:100%;
+  padding:15px;
+  margin:6px 0;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:var(--panel);
+  color:white;
+  text-align:left;
+  font-size:15px;
+}
+.primary {
+  background:linear-gradient(100deg,#7c3aed,#9b67f5);
+  border:0;
+  color:white;
+  font-weight:bold;
+  text-align:center;
+}
+.page {display:none}
+.page.active {display:block}
+.bottom {
+  position:fixed;
+  bottom:0;left:0;right:0;
+  display:flex;
+  justify-content:space-around;
+  padding:12px 5px calc(12px + env(safe-area-inset-bottom));
+  background:#11111a;
+  border-top:1px solid var(--border);
+}
+.bottom button {
+  background:none;border:0;color:var(--muted);
+  font-size:12px;padding:5px;
+}
+.bottom button.active {color:#c4a5ff}
+input,select {
+  width:100%;padding:14px;margin:8px 0;
+  background:#171622;color:white;
+  border:1px solid var(--border);border-radius:12px;
+  font-size:15px;
+}
+.room {
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:15px;margin:10px 0;
+}
+.muted {color:var(--muted);font-size:13px}
+button {cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">ZENTRA</div>
+  <button class="profile" onclick="showPage('profile')">👤</button>
+</header>
+
+<main>
+<section id="home" class="page active">
+  <h1 id="welcome">Грай по-своєму.</h1>
+  <div class="subtitle">Твій простір для ігор із друзями.</div>
+  <div class="balance">
+    <small>ТВОЇ БАЛИ</small>
+    <strong>0 ✦</strong>
+    <small>Твій ігровий профіль ZENTRA</small>
+  </div>
+  <div class="section-title">Обирай гру</div>
+  <div class="games">
+    <button class="game" onclick="openGame('durak','🃏 Дурень')">
+      <span class="emoji">🃏</span><strong>Дурень</strong><small>Карткова гра</small>
+    </button>
+    <button class="game" onclick="openGame('poker','♠️ Покер')">
+      <span class="emoji">♠️</span><strong>Покер</strong><small>Карткова гра</small>
+    </button>
+    <button class="game" onclick="openGame('mafia','🕵️ Мафія')">
+      <span class="emoji">🌙</span><strong>Мафія</strong><small>Гра компанією</small>
+    </button>
+    <button class="game" onclick="openGame('ttt','❌ Хрестики-нулики')">
+      <span class="emoji">❌</span><strong>Хрестики-нулики</strong><small>Гра на двох</small>
+    </button>
+  </div>
+</section>
+
+<section id="game" class="page">
+  <button class="action" onclick="showPage('home')">← Назад</button>
+  <h1 id="gameTitle">Гра</h1>
+  <p class="subtitle">Обери, як хочеш грати.</p>
+  <button class="action primary" onclick="createRoom(true)">🔒 Створити приватне лобі</button>
+  <button class="action" onclick="createRoom(false)">🌍 Створити відкрите лобі</button>
+  <button class="action" onclick="showRooms()">📋 Усі лобі</button>
+  <button class="action" onclick="showPage('join')">🔑 Приєднатися за кодом</button>
+</section>
+
+<section id="rooms" class="page">
+  <button class="action" onclick="showPage('game')">← Назад</button>
+  <h1>Усі лобі</h1>
+  <div id="roomList"><p class="muted">Поки що кімнат немає.</p></div>
+</section>
+
+<section id="join" class="page">
+  <button class="action" onclick="showPage('game')">← Назад</button>
+  <h1>Приєднатися до лобі</h1>
+  <p class="subtitle">Введи шестизначний код кімнати.</p>
+  <input id="roomCode" placeholder="НАПРИКЛАД: A8K2P1" maxlength="6">
+  <button class="action primary" onclick="joinRoom()">Приєднатися</button>
+  <p id="joinMessage" class="muted"></p>
+</section>
+
+<section id="profile" class="page">
+  <h1>Профіль</h1>
+  <div class="balance">
+    <small>ГРАВЕЦЬ</small>
+    <strong id="playerName">Гість ZENTRA</strong>
+    <small>Статистика та досягнення з'являться тут.</small>
+  </div>
+  <button class="action" onclick="showPage('home')">← На головну</button>
+</section>
+</main>
+
+<nav class="bottom">
+  <button class="active" onclick="showPage('home',this)">⌂<br>Головна</button>
+  <button onclick="showPage('rooms',this)">▤<br>Лобі</button>
+  <button onclick="showPage('profile',this)">◉<br>Профіль</button>
+</nav>
+
+<script>
+const API_URL = "https://zentra-1-1322.onrender.com";
+const tg = window.Telegram?.WebApp;
+
+if (tg) {
+  tg.ready();
+  tg.expand();
+}
+
+let selectedGame = "";
+let selectedTitle = "";
+let cachedPlayerName = "";
+
+const gameNames = {
+  durak: "🃏 Дурень",
+  poker: "♠️ Покер",
+  mafia: "🌙 Мафія",
+  ttt: "❌ Хрестики-нулики"
+};
+
+function getPlayerName() {
+  if (tg?.initDataUnsafe?.user?.first_name) {
+    return tg.initDataUnsafe.user.first_name.slice(0, 30);
+  }
+
+  if (cachedPlayerName) return cachedPlayerName;
+
+  let saved = localStorage.getItem("zentra_player_name");
+  if (!saved) {
+    saved = prompt("Як тебе звати в ZENTRA?");
+  }
+
+  cachedPlayerName = (saved || "Гравець").trim().slice(0, 30);
+  if (!cachedPlayerName) cachedPlayerName = "Гравець";
+
+  localStorage.setItem("zentra_player_name", cachedPlayerName);
+  return cachedPlayerName;
+}
+
+document.getElementById("playerName").textContent = getPlayerName();
+
+if (tg?.initDataUnsafe?.user?.first_name) {
+  document.getElementById("welcome").textContent =
+    "Привіт, " + tg.initDataUnsafe.user.first_name + "!";
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;",
+    '"': "&quot;", "'": "&#39;"
+  })[c]);
+}
+
+async function apiRequest(path, method = "GET", body = null) {
+  const options = { method, headers: { "Content-Type": "application/json" } };
+  if (body) options.body = JSON.stringify(body);
+
+  const response = await fetch(API_URL + path, options);
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.detail || "Помилка сервера");
+  }
+  return data;
+}
+
+function showPage(id, btn) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+
+  document.querySelectorAll(".bottom button").forEach(b => b.classList.remove("active"));
+  if (btn) btn.classList.add("active");
+
+  if (id === "rooms") loadRooms();
+}
+
+function openGame(id, title) {
+  selectedGame = id;
+  selectedTitle = title;
+  document.getElementById("gameTitle").textContent = title;
+  showPage("game");
+}
+
+async function createRoom(isPrivate) {
+  try {
+    const result = await apiRequest("/api/rooms", "POST", {
+      game: selectedGame,
+      player_name: getPlayerName(),
+      private: isPrivate,
+      max_players: selectedGame === "mafia" ? 10 : 4
+    });
+
+    alert(
+      (isPrivate ? "Приватне" : "Відкрите") +
+      " лобі створено!\nКод кімнати: " + result.code
+    );
+  } catch (error) {
+    alert("Не вдалося створити кімнату: " + error.message);
+  }
+}
+
+async function loadRooms() {
+  const list = document.getElementById("roomList");
+  list.innerHTML = '<p class="muted">Завантажуємо кімнати...</p>';
+
+  try {
+    const rooms = await apiRequest("/api/rooms");
+
+    if (!rooms.length) {
+      list.innerHTML = '<p class="muted">Поки що відкритих лобі немає.</p>';
+      return;
+    }
+
+    list.innerHTML = rooms.map(r => `
+      <div class="room">
+        <strong>${escapeHtml(gameNames[r.game] || r.game)}</strong>
+        <p class="muted">Гравців: ${r.players}/${r.max_players}</p>
+        <p class="muted">Код: ${escapeHtml(r.code)}</p>
+        <button class="action primary"
+          onclick="quickJoin('${escapeHtml(r.code)}')">
+          Приєднатися
+        </button>
+      </div>
+    `).join("");
+  } catch (error) {
+    list.innerHTML =
+      '<p class="muted">Не вдалося завантажити кімнати: ' +
+      escapeHtml(error.message) + '</p>';
+  }
+}
+
+function showRooms() {
+  showPage("rooms");
+}
+
+function quickJoin(code) {
+  document.getElementById("roomCode").value = code;
+  showPage("join");
+}
+
+async function joinRoom() {
+  const code = document.getElementById("roomCode").value.trim().toUpperCase();
+  const message = document.getElementById("joinMessage");
+
+  if (!code) {
+    message.textContent = "Введи код кімнати.";
+    return;
+  }
+
+  message.textContent = "Підключаємося...";
+
+  try {
+    await apiRequest("/api/rooms/join", "POST", {
+      code: code,
+      player_name: getPlayerName()
+    });
+
+    const room = await apiRequest("/api/rooms/" + encodeURIComponent(code));
+
+    message.textContent =
+      "Успішно приєднався! Гра: " +
+      (gameNames[room.game] || room.game) +
+      ". Гравці: " + room.players.join(", ");
+  } catch (error) {
+    message.textContent = error.message;
+  }
+}
+</script>
+</body>
+</html>
