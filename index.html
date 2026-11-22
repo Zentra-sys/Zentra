@@ -306,28 +306,69 @@ function sendMafia(){
  const phase=state.state.phase;
  send({action:phase==="night"?"night":"vote",target:window.mafiaTarget});
 }
+n 
 
 function renderPoker(s,el){
- el.innerHTML="<p>Банк: "+(s.pot||0)+" фішок</p>"+
- "<p>Спільні карти:</p><div class='cards'>"+
- (s.community||[]).map(c=>"<span class='card'>"+esc(c)+"</span>").join("")+
- "</div><h3>Гравці</h3>"+
- (s.players||[]).map(p=>
-  '<div class="player">'+esc(p.name)+" — "+p.chips+" фішок "+
-  (p.folded?"(пас)":"")+
-  "</div>"
- ).join("")+
- '<h3>Твої карти</h3><div class="cards" id="myCards"></div>'+
- '<div class="actions">'+
- '<button onclick="send({action:\\'check\\'})">Чек</button>'+
- '<button onclick="send({action:\\'call\\'})">Зрівняти</button>'+
- '<button onclick="raiseBet()">Підняти</button>'+
- '<button onclick="send({action:\\'fold\\'})">Пас</button></div>'+
- '<p>Хід: '+esc(s.turn||"")+'</p>';
- const me=(s.players||[]).find(p=>p.name===playerName);
- const box=el.querySelector("#myCards");
- (me?.cards||[]).forEach(c=>box.appendChild(cardButton(c,()=>{})));
+ el.innerHTML="";
+
+ const pot=document.createElement("p");
+ pot.textContent="Банк: "+(s.pot||0)+" фішок";
+ el.appendChild(pot);
+
+ const community=document.createElement("div");
+ community.className="cards";
+ (s.community||[]).forEach(c=>{
+  community.appendChild(cardButton(c,()=>{}));
+ });
+ el.appendChild(community);
+
+ const title=document.createElement("h3");
+ title.textContent="Гравці";
+ el.appendChild(title);
+
+ (s.players||[]).forEach(p=>{
+  const div=document.createElement("div");
+  div.className="player";
+  div.textContent=p.name+" — "+p.chips+" фішок "+(p.folded?"(пас)":"");
+  el.appendChild(div);
+ });
+
+ const cardsTitle=document.createElement("h3");
+ cardsTitle.textContent="Твої карти";
+ el.appendChild(cardsTitle);
+
+ const myCards=document.createElement("div");
+ myCards.className="cards";
+ (s.my_cards||[]).forEach(c=>{
+  myCards.appendChild(cardButton(c,()=>{}));
+ });
+ el.appendChild(myCards);
+
+ const actions=document.createElement("div");
+ actions.className="actions";
+
+ [
+  ["Чек",{action:"check"}],
+  ["Зрівняти",{action:"call"}],
+  ["Пас",{action:"fold"}]
+ ].forEach(([label,data])=>{
+  const b=document.createElement("button");
+  b.textContent=label;
+  b.onclick=()=>send(data);
+  actions.appendChild(b);
+ });
+
+ const raise=document.createElement("button");
+ raise.textContent="Підняти";
+ raise.onclick=raiseBet;
+ actions.appendChild(raise);
+ el.appendChild(actions);
+
+ const turn=document.createElement("p");
+ turn.textContent="Хід: "+(s.turn||"");
+ el.appendChild(turn);
 }
+
 
 function raiseBet(){
  const amount=Number(prompt("На скільки підняти ставку?", "50"));
