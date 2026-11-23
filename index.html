@@ -432,14 +432,47 @@ function chooseGame(game){
     showPage("rooms");
 }
 async function createRoom(){
- try{
-  const name=document.getElementById("roomName").value.trim()||currentName;
-  currentName=name;
-  room=await request("/api/rooms",{method:"POST",body:JSON.stringify({name,game:document.getElementById("game").value,open:document.getElementById("openRoom").checked})});
-  enterRoom(room);
- }catch(e){alert(e.message)}
-}
+    const error = document.getElementById("createError");
+    const gameSelect = document.getElementById("roomGame");
+    const openSelect = document.getElementById("roomOpen");
 
+    if(!gameSelect || !openSelect){
+        if(error) error.textContent = "Не знайдено налаштування кімнати";
+        return;
+    }
+
+    const game = gameSelect.value;
+    const open = openSelect.value === "true";
+
+    if(!game){
+        if(error) error.textContent = "Вибери гру";
+        return;
+    }
+
+    try{
+        if(error) error.textContent = "";
+
+        const data = await request("/api/rooms", {
+            method: "POST",
+            body: JSON.stringify({
+                name: currentName,
+                game: game,
+                open: open
+            })
+        });
+
+        const room = data.room || data;
+
+        if(!room.code){
+            throw new Error(data.message || "Не вдалося створити кімнату");
+        }
+
+        enterRoom(room);
+
+    }catch(e){
+        if(error) error.textContent = e.message;
+    }
+}
 async function joinRoom(){
  try{
   const code=document.getElementById("joinCode").value.trim();
