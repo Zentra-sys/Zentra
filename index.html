@@ -397,12 +397,43 @@ function showApp(){
 }
 
 async function saveProfile(){
- const name=document.getElementById("nickname").value.trim();
- if(!name){showError(t("invalidName"));return}
- try{
-  profile=await request("/api/profile",{method:"POST",body:JSON.stringify({uid,name})});
-  showApp();
- }catch(e){showError(e.message.includes("зайнятий")||e.message.includes("taken")?t("nickTaken"):e.message)}
+    const input = document.getElementById("nickname");
+    const error = document.getElementById("profileError");
+
+    const name = input.value.trim();
+
+    if(error) error.textContent = "";
+
+    if(!name){
+        if(error) error.textContent = t("invalidName");
+        return;
+    }
+
+    if(typeof uid === "undefined" || !uid){
+        if(error) error.textContent = "Помилка: не знайдено UID профілю";
+        return;
+    }
+
+    try{
+        const result = await request("/api/profile", {
+            method: "POST",
+            body: JSON.stringify({
+                uid: uid,
+                name: name
+            })
+        });
+
+        profile = result.profile || result;
+        currentName = name;
+
+        showApp();
+
+    }catch(e){
+        if(error){
+            error.textContent = e.message || "Не вдалося створити профіль";
+        }
+        console.error("Помилка saveProfile:", e);
+    }
 }
 
 async function init(){
