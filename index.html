@@ -1183,18 +1183,19 @@ function move(index){
 // =========================
 
 async function startGame(){
- if(!room)return;
+    if(!currentRoom || !currentRoom.code) return;
 
- try{
-  await request(
-   "/api/rooms/"+room.code+"/start",
-   {method:"POST"}
-  );
-
-  alert(t("gameStarted"));
- }catch(e){
-  alert(e.message);
- }
+    try{
+        await request("/api/rooms/" + currentRoom.code + "/start", {
+            method: "POST",
+            body: JSON.stringify({
+                name: currentName
+            })
+        });
+    }catch(e){
+        const message = document.getElementById("gameMessage");
+        if(message) message.textContent = e.message;
+    }
 }
 
 function leaveRoom(){
