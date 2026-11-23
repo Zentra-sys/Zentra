@@ -1,3 +1,102 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090b17">
+<title>ZENTRA</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+:root{
+ --bg:#090b17;--panel:#111629;--panel2:#171e35;--line:#252e49;
+ --text:#f5f6ff;--muted:#8993b2;--purple:#8974ff;--blue:#4e9cff;
+ --green:#46d6a0;--pink:#f078c5;--radius:20px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Arial,sans-serif;min-height:100vh}
+button,input,select{font:inherit}
+button{cursor:pointer;border:0;color:white}
+button:disabled{opacity:.5;cursor:not-allowed}
+.hidden{display:none!important}
+.app{display:grid;grid-template-columns:245px minmax(0,1fr);min-height:100vh}
+.sidebar{background:#0d1121;border-right:1px solid var(--line);padding:25px 16px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:12px;padding:5px 10px 30px}
+.brand-icon{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#8871ff,#4d9dff);display:grid;place-items:center;font-size:22px;font-weight:900;box-shadow:0 8px 28px #7766ff55}
+.brand-name{font-size:23px;font-weight:900;letter-spacing:2px}
+.brand-name span{color:#9585ff}
+.nav-label{font-size:10px;color:#687493;letter-spacing:1.6px;font-weight:800;padding:17px 12px 9px}
+.nav-btn{width:100%;background:transparent;color:#929cba;padding:13px 14px;border-radius:12px;text-align:left;display:flex;align-items:center;gap:13px;margin:3px 0;transition:.2s}
+.nav-btn:hover,.nav-btn.active{background:#242546;color:white}
+.nav-btn.active{box-shadow:inset 3px 0 #9582ff}
+.nav-icon{width:23px;text-align:center;font-size:18px}
+.sidebar-bottom{margin-top:auto}
+.online{display:flex;align-items:center;gap:9px;padding:14px;background:#151d30;border:1px solid var(--line);border-radius:13px;font-size:12px;color:#aab4d1}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green)}
+.main{min-width:0}
+.topbar{height:76px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 35px;background:#0c1020dd;position:sticky;top:0;z-index:5;backdrop-filter:blur(18px)}
+.top-title{font-size:14px;color:#aab4d1;font-weight:600}
+.top-right{display:flex;align-items:center;gap:12px}
+.balance{background:#1b2140;border:1px solid #36365f;padding:10px 15px;border-radius:13px;font-size:13px;font-weight:800;color:#c5baff}
+.avatar{width:39px;height:39px;border-radius:13px;background:linear-gradient(135deg,#927cff,#4c9fff);display:grid;place-items:center;font-weight:900}
+.content{max-width:1250px;margin:auto;padding:22px 35px 35px}
+.page{display:none;animation:appear .25s ease}
+.page.active{display:block}
+@keyframes appear{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#998aff;font-weight:800;margin-bottom:10px}
+h1{font-size:32px;letter-spacing:-1.2px;margin:0 0 9px}
+h2{font-size:19px;margin:0 0 17px}
+h3{font-size:15px;margin:0 0 8px}
+.sub{color:var(--muted);font-size:13px;line-height:1.7}
+.hero{position:relative;overflow:hidden;padding:32px;border-radius:25px;background:linear-gradient(115deg,#29234e,#202b54 60%,#18395b);border:1px solid #45416e;margin-bottom:22px}
+.hero:after{content:"✦";position:absolute;right:8%;top:-45px;font-size:190px;color:#ffffff0c;transform:rotate(15deg)}
+.hero h1{font-size:34px;max-width:550px}
+.hero p{color:#c2c5e6;max-width:480px;line-height:1.7;font-size:13px}
+.primary{background:linear-gradient(110deg,#8b75ff,#5b91ff);padding:12px 18px;border-radius:12px;font-weight:800;box-shadow:0 7px 20px #6b75ff30;transition:.2s}
+.primary:hover{transform:translateY(-2px);filter:brightness(1.12)}
+.secondary{background:#252d49;padding:12px 17px;border-radius:12px;font-weight:700;color:#dce2ff}
+.ghost{background:transparent;border:1px solid var(--line);padding:11px 15px;border-radius:12px;color:#c5cce3}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px;margin-bottom:22px}
+.grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:21px;min-width:0}
+.stat{display:flex;align-items:center;gap:14px}
+.stat-icon{width:47px;height:47px;display:grid;place-items:center;border-radius:15px;font-size:22px;background:#282449}
+.stat-icon.blue{background:#192f4c}.stat-icon.green{background:#163b35}.stat-icon.pink{background:#3c2341}
+.stat-number{font-size:24px;font-weight:900;margin-top:4px}
+.stat-caption{font-size:11px;color:var(--muted)}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:25px 0 14px}
+.game-card{position:relative;overflow:hidden;min-height:155px;transition:.2s;cursor:pointer}
+.game-card:hover{transform:translateY(-4px);border-color:#665d9e}
+.game-art{font-size:31px;margin-bottom:14px}
+.game-card p{font-size:12px;color:var(--muted);line-height:1.6}
+.tag{display:inline-block;padding:6px 9px;border-radius:8px;background:#252947;color:#b9b1ff;font-size:10px;font-weight:800}
+.task-progress{height:9px;border-radius:20px;background:#252d45;overflow:hidden;margin:15px 0}
+.task-progress span{display:block;height:100%;background:linear-gradient(90deg,#9178ff,#4e9cff);border-radius:20px}
+.day-row{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin:18px 0}
+.day{background:#1b233a;border:1px solid #303a58;border-radius:12px;padding:12px 3px;text-align:center}
+.day.done{background:#263b47;border-color:#4dba9a}
+.day strong{display:block;font-size:13px}
+.day small{font-size:10px;color:var(--muted)}
+.form-input{width:100%;padding:13px 14px;background:#0b1020;border:1px solid #303b59;border-radius:12px;color:white;outline:none;margin:8px 0 14px}
+.form-input:focus{border-color:#8974ff;box-shadow:0 0 0 3px #8974ff20}
+label{font-size:12px;color:#aab4d1;font-weight:700}
+.room-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px;background:#171e32;border:1px solid var(--line);border-radius:14px;margin:10px 0}
+.room-item p{font-size:11px;color:var(--muted);margin:6px 0 0}
+.empty{text-align:center;padding:30px;color:var(--muted);font-size:13px}
+.setting-row{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:17px 0;border-bottom:1px solid var(--line)}
+.setting-row:last-child{border:0}
+.setting-row p{margin:5px 0 0;font-size:11px;color:var(--muted)}
+select{background:#1b2339;color:white;border:1px solid #394461;padding:11px;border-radius:10px;min-width:140px}
+.notice{padding:13px;border-radius:12px;background:#28233f;color:#c9c0ff;font-size:12px;margin:12px 0}
+.error{color:#ff8b9e;font-size:12px;margin-top:8px}
+.success{color:#6ee0b2;font-size:12px;margin-top:8px}
+#board{display:grid;grid-template-columns:repeat(3,85px);gap:8px;justify-content:center;margin:20px}
+.cell{height:85px;border-radius:14px;background:#222c49;font-size:29px;font-weight:900}
+.cell:hover{background:#343d67}
+.mobile-menu{display:none}
+
+/* MAFIA */
+.mafia-panel{background:linear-gradient(145deg,#1c203a,#151a2d);border:1px solid #353b60;border-radius:18px;padding:20px;margin:15px 0}
+.mafia-role{font-size:25px;font-weight:900;margin:8px 0}
 .mafia-role.mafia{color:#ff718c}
 .mafia-role.doctor{color:#54ddb1}
 .mafia-role.detective{color:#79aaff}
@@ -16,7 +115,6 @@
 .mafia-action-done{padding:13px;border-radius:12px;background:#183b35;color:#8be8c7;font-size:12px;margin-top:12px}
 .mafia-select{width:100%;padding:13px;background:#0b1020;border:1px solid #394461;border-radius:12px;color:white;margin:10px 0}
 .mafia-winner{text-align:center;padding:25px;border-radius:16px;background:linear-gradient(135deg,#30264e,#183c45);border:1px solid #635b91;margin:15px 0}
-.mafia-winner strong{display:block;font-size:24px;margin:10px}
 .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
 #profileScreen{max-width:480px;margin:10vh auto;padding:28px;background:var(--panel);border:1px solid var(--line);border-radius:24px}
 #profileScreen .brand{padding:0 0 20px}
@@ -26,74 +124,1095 @@
  .sidebar{position:fixed;top:auto;bottom:0;left:0;right:0;z-index:20;height:76px;padding:5px 4px;background:#0d1121;border-top:1px solid var(--line);border-right:0;display:flex;flex-direction:row;align-items:center;justify-content:space-around}
  .brand,.nav-label,.sidebar-bottom{display:none!important}
  .nav-list{display:contents}
- .nav-btn{flex:1;width:auto;min-width:0;margin:0;padding:7px 1px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px;font-size:9px}
- .nav-icon{font-size:18px}
- .topbar{height:64px;padding:0 16px}
- .content{padding:18px 15px 95px}
- .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
- .grid.two{grid-template-columns:1fr}
+ .nav-btn{flex:1;width:auto;min-width:0;margin:0;padding:7px 1px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;font-size:9px;text-align:center;border-radius:10px;white-space:nowrap}
+ .nav-icon{width:auto;font-size:19px}
+ .nav-btn.active{box-shadow:inset 0 2px #9582ff}
+ .topbar{height:60px;padding:0 15px;top:0}
+ .content{padding:18px 14px 100px}
+ .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
  .hero{padding:23px}
  .hero h1{font-size:27px}
+}
+@media(max-width:480px){
+ .grid,.grid.two{grid-template-columns:1fr}
  h1{font-size:27px}
+ .day-row{gap:4px}
+ .day{padding:10px 1px}
+ .day small{font-size:9px}
  .top-title{font-size:12px}
+ .balance{padding:8px 10px}
  .mafia-players{grid-template-columns:1fr}
+ .mafia-actions{grid-template-columns:1fr}
 }
-@media(max-width:420px){
- .grid{grid-template-columns:1fr}
- .topbar{padding:0 12px}
- .content{padding-left:12px;padding-right:12px}
- .setting-row{gap:8px}
- .setting-row .secondary,.setting-row .primary{padding:9px 11px;font-size:11px}
-}
+a.secondary{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;padding:10px 16px;border-radius:12px;background:#252d49;color:white}
 </style>
 </head>
 <body>
-<div id="profileScreen">
+
+<section id="profileScreen">
  <div class="brand"><div class="brand-icon">Z</div><div class="brand-name">ZEN<span>TRA</span></div></div>
  <div class="eyebrow" data-t="welcome">ЛАСКАВО ПРОСИМО</div>
  <h1 data-t="createProfile">Створи свій профіль</h1>
  <p class="sub" data-t="profileHint">Обери унікальний нікнейм і приєднуйся до спільноти ZENTRA.</p>
  <label data-t="nickname">Нікнейм</label>
- <input class="form-input" id="nickname" maxlength="24" placeholder="Player123">
+ <input class="form-input" id="nickname" maxlength="24" placeholder="Наприклад, Player123">
  <button class="primary" style="width:100%" onclick="saveProfile()" data-t="enter">Увійти в ZENTRA</button>
  <div id="profileError" class="error"></div>
- <div style="margin-top:20px">
-  <label data-t="language">Мова</label>
-  <select id="languageSelectStart" onchange="setLanguage(this.value)">
-   <option value="uk">Українська 🇺🇦</option>
-   <option value="en">English 🇬🇧</option>
-  </select>
- </div>
-</div>
+ <div style="margin-top:18px"><label data-t="language">Мова</label><br><select id="firstLanguage" onchange="setLanguage(this.value)"><option value="uk">Українська 🇺🇦</option><option value="en">English 🇬🇧</option><option value="ru">Русский 🇷🇺</option></select></div>
+</section>
 
-<div class="app hidden" id="app">
+<div class="app hidden" id="appScreen">
  <aside class="sidebar">
   <div class="brand"><div class="brand-icon">Z</div><div class="brand-name">ZEN<span>TRA</span></div></div>
   <div class="nav-label" data-t="workspace">РОБОЧИЙ ПРОСТІР</div>
   <div class="nav-list">
-   <button class="nav-btn active" onclick="showPage('home')"><span class="nav-icon">⌂</span><span data-t="home">Головна</span></button>
-   <button class="nav-btn" onclick="showPage('games')"><span class="nav-icon">🎮</span><span data-t="games">Ігри</span></button>
-   <button class="nav-btn" onclick="showPage('lobbies')"><span class="nav-icon">🌐</span><span data-t="lobbies">Відкриті лобі</span></button>
-   <button class="nav-btn" onclick="showPage('rooms')"><span class="nav-icon">＋</span><span data-t="rooms">Кімнати</span></button>
-   <button class="nav-btn" onclick="showPage('profile')"><span class="nav-icon">◉</span><span data-t="profile">Профіль</span></button>
-   <button class="nav-btn" onclick="showPage('settings')"><span class="nav-icon">⚙</span><span data-t="settings">Налаштування</span></button>
+   <button class="nav-btn active" onclick="showPage('home',this)"><span class="nav-icon">⌂</span><span data-t="home">Головна</span></button>
+   <button class="nav-btn" onclick="showPage('games',this)"><span class="nav-icon">🎮</span><span data-t="games">Ігри</span></button>
+   <button class="nav-btn" onclick="showPage('lobbies',this)"><span class="nav-icon">🌍</span><span data-t="lobbies">Відкриті лобі</span></button>
+   <button class="nav-btn" onclick="showPage('rooms',this)"><span class="nav-icon">♧</span><span data-t="rooms">Кімнати</span></button>
   </div>
-  <div class="sidebar-bottom"><div class="online"><span class="dot"></span><span>ZENTRA ONLINE</span></div></div>
+  <div class="nav-label" data-t="account">АКАУНТ</div>
+  <div class="nav-list">
+   <button class="nav-btn" onclick="showPage('profile',this)"><span class="nav-icon">◉</span><span data-t="profile">Профіль</span></button>
+   <button class="nav-btn" onclick="showPage('settings',this)"><span class="nav-icon">⚙</span><span data-t="settings">Налаштування</span></button>
+  </div>
+  <div class="sidebar-bottom"><div class="online"><span class="dot"></span><span id="serverStatus" data-t="connecting">Підключення...</span></div></div>
  </aside>
+
  <main class="main">
-  <header class="topbar"><div class="top-title">ZENTRA / <span id="pageTitle">HOME</span></div><div class="top-right"><div class="avatar" id="topAvatar">Z</div></div></header>
+  <header class="topbar">
+   <div class="top-title">ZENTRA / <span id="currentPageName">Головна</span></div>
+   <div class="top-right"><div class="avatar" id="topAvatar">Z</div></div>
+  </header>
+
   <div class="content">
    <section class="page active" id="page-home">
-    <div class="hero"><div class="eyebrow" data-t="community">ТВОЯ ІГРОВА СПІЛЬНОТА</div><h1><span data-t="hello">Привіт</span>, <span id="helloName">Player</span> 👋</h1><p data-t="heroText">Грай, знайомся, створюй кімнати та запрошуй друзів. Твоя пригода в ZENTRA починається тут.</p><button class="primary" onclick="showPage('games')" data-t="playNow">Грати зараз →</button></div>
+    <div class="hero">
+     <div class="eyebrow" data-t="community">ТВОЯ ІГРОВА СПІЛЬНОТА</div>
+     <h1><span data-t="hello">Привіт</span>, <span id="helloName">Player</span>! ✨</h1>
+     <p data-t="heroText">Грай, знайомся, створюй кімнати та запрошуй друзів. Твоя пригода в ZENTRA починається тут.</p>
+     <button class="primary" onclick="showPage('games')" data-t="playNow">Грати зараз →</button>
+    </div>
     <div class="grid">
-     <div class="card stat"><div class="stat-icon blue">🎮</div><div><div class="stat-caption" data-t="featuredGames">Популярні ігри</div><div class="stat-number">5</div></div></div>
-     <div class="card stat"><div class="stat-icon green">🌐</div><div><div class="stat-caption" data-t="availableRooms">Відкриті лобі</div><div class="stat-number" id="lobbyCount">0</div></div></div>
-     <div class="card stat"><div class="stat-icon pink">⭐</div><div><div class="stat-caption">ZENTRA PREMIUM</div><div class="stat-number">20 ⭐</div></div></div>
+     <div class="card stat"><div class="stat-icon blue">♧</div><div><div class="stat-caption" data-t="availableRooms">ВІДКРИТІ ЛОБІ</div><div class="stat-number" id="homeLobbies">—</div></div></div>
     </div>
     <div class="section-head"><h2 data-t="featuredGames">Популярні ігри</h2><button class="ghost" onclick="showPage('games')" data-t="allGames">Усі ігри →</button></div>
     <div class="grid">
-     <div class="card game-card" onclick="chooseGame('ttt')"><div class="game-art">⭕ ❌</div><h3>Хрестики-нулики</h3><p data-t="tttDesc">Класична гра для двох гравців.</p></div>
-     <div class="card game-card" onclick="chooseGame('mafia')"><div class="game-art">🕵️</div><h3>Мафія</h3><p data-t="mafiaDesc">Знайди мафію серед гравців.</p></div>
-     <div class="card game-card" onclick="chooseGame('crocodile')"><div class="game-art">🐊</div><h3>Крокодил-зубастик</h3><p>Натискай на зуби, але остерігайся пастки!</p></div>
+     <div class="card game-card" onclick="chooseGame('ttt')"><div class="game-art">⭕ ❌</div><h3>Хрестики-нулики</h3><p data-t="tttDesc">Класична гра для двох гравців.</p><span class="tag" data-t="twoPlayers">2 ГРАВЦІ</span></div>
+     <div class="card game-card" onclick="chooseGame('durak')"><div class="game-art">🃏</div><h3>Дурень</h3><p data-t="durakDesc">Карткова гра з друзями.</p><span class="tag" data-t="cards">КАРТИ</span></div>
+     <div class="card game-card" onclick="chooseGame('mafia')"><div class="game-art">🕵️</div><h3>Мафія</h3><p data-t="mafiaDesc">Знайди мафію серед гравців.</p><span class="tag" data-t="social">КОМАНДНА</span></div>
+     <div class="card game-card" onclick="chooseGame('crocodile')"><div class="game-art">🐊</div><h3>Крокодил-зубастик</h3><p>Натискай на зуби, але не потрап на небезпечний!</p><span class="tag">2–4 ГРАВЦІ</span></div>
     </div>
    </section>
+
+   <section class="page" id="page-games">
+    <div class="eyebrow" data-t="entertainment">РОЗВАГИ</div><h1 data-t="games">Ігри</h1><p class="sub" data-t="gamesHint">Обирай гру та запрошуй друзів.</p>
+    <div class="grid">
+     <div class="card game-card" onclick="chooseGame('ttt')"><div class="game-art">⭕ ❌</div><h3>Хрестики-нулики</h3><p data-t="tttDesc">Класична гра для двох гравців.</p><button class="primary" data-t="createRoom">Створити кімнату</button></div>
+     <div class="card game-card" onclick="chooseGame('durak')"><div class="game-art">🃏</div><h3>
+           <div class="card game-card" onclick="chooseGame('mafia')"><div class="game-art">🕵️</div><h3>Мафія</h3><p data-t="mafiaDesc">Знайди мафію серед гравців.</p><button class="primary" data-t="createRoom">Створити кімнату</button></div>
+     <div class="card game-card" onclick="chooseGame('poker')"><div class="game-art">♠️</div><h3>Покер</h3><p>Texas Hold'em.</p><button class="primary" data-t="createRoom">Створити кімнату</button></div>
+     <div class="card game-card" onclick="chooseGame('crocodile')"><div class="game-art">🐊</div><h3>Крокодил-зубастик</h3><p>Не натисни небезпечний зуб!</p><button class="primary" data-t="createRoom">Створити кімнату</button></div>
+    </div>
+   </section>
+
+   <section class="page" id="page-lobbies">
+    <div class="eyebrow" data-t="multiplayer">ОНЛАЙН</div>
+    <h1 data-t="lobbies">Відкриті лобі</h1>
+    <p class="sub" data-t="lobbiesHint">Приєднуйся до кімнат інших гравців.</p>
+    <button class="secondary" onclick="loadLobbies()" data-t="refresh">↻ Оновити</button>
+    <div id="lobbyList" class="card" style="margin-top:15px"><div class="empty">Завантаження...</div></div>
+   </section>
+
+   <section class="page" id="page-rooms">
+    <div class="eyebrow" data-t="multiplayer">ОНЛАЙН</div>
+    <h1 data-t="rooms">Кімнати</h1>
+    <div class="card">
+     <h2 data-t="createRoom">Створити кімнату</h2>
+     <label data-t="chooseGame">Обери гру</label>
+     <select id="roomGame" class="form-input">
+      <option value="ttt">⭕ Хрестики-нулики</option>
+      <option value="durak">🃏 Дурень</option>
+      <option value="mafia">🕵️ Мафія</option>
+      <option value="poker">♠️ Покер</option>
+      <option value="crocodile">🐊 Крокодил-зубастик</option>
+     </select>
+     <label data-t="roomVisibility">Видимість кімнати</label>
+     <select id="roomOpen" class="form-input">
+      <option value="false" data-t="private">Приватна</option>
+      <option value="true" data-t="public">Відкрита</option>
+     </select>
+     <button class="primary" onclick="createRoom()" data-t="create">Створити</button>
+     <div id="createError" class="error"></div>
+    </div>
+    <div class="card" style="margin-top:18px">
+     <h2 data-t="joinRoom">Приєднатися до кімнати</h2>
+     <label data-t="roomCode">Код кімнати</label>
+     <input id="joinCode" class="form-input" placeholder="123456">
+     <button class="secondary" onclick="joinRoom()" data-t="join">Приєднатися</button>
+     <div id="joinError" class="error"></div>
+    </div>
+    <div class="section-head"><h2 data-t="myRooms">Мої кімнати</h2></div>
+    <div id="myRoomList" class="card"><div class="empty">—</div></div>
+   </section>
+
+   <section class="page" id="page-profile">
+    <div class="eyebrow" data-t="account">АКАУНТ</div><h1 data-t="profile">Профіль</h1>
+    <div class="card">
+     <div class="row"><div class="avatar" id="profileAvatar" style="width:65px;height:65px;font-size:25px">Z</div><div style="flex:1"><h2 id="profileName">Player</h2><p class="sub" data-t="member">Учасник ZENTRA</p></div><span class="tag" id="premiumStatus">FREE</span></div>
+     <div class="setting-row"><div><b data-t="nickname">Нікнейм</b><p data-t="uniqueNickname">Унікальне ім'я в спільноті</p></div><button class="ghost" onclick="changeNickname()" data-t="edit">Змінити</button></div>
+    </div>
+    <div class="card" style="margin-top:18px">
+     <div class="eyebrow">ZENTRA PREMIUM</div><h2 data-t="premiumTitle">Відкрий більше можливостей</h2>
+     <p class="sub" data-t="premiumDesc">Преміум-доступ назавжди за одноразову оплату.</p>
+     <h1>⭐ 20 Stars</h1>
+     <button class="primary" onclick="buyPremium()" data-t="buyPremium">Придбати Premium</button>
+     <div id="premiumMessage" class="sub" style="margin-top:12px"></div>
+    </div>
+   </section>
+
+   <section class="page" id="page-settings">
+    <div class="eyebrow" data-t="preferences">ПЕРСОНАЛІЗАЦІЯ</div><h1 data-t="settings">Налаштування</h1>
+    <div class="card">
+     <div class="setting-row"><div><b data-t="language">Мова</b><p data-t="languageHint">Обери мову інтерфейсу</p></div><select id="languageSelect" onchange="setLanguage(this.value)"><option value="uk">Українська 🇺🇦</option><option value="en">English 🇬🇧</option><option value="ru">Русский 🇷🇺</option></select></div>
+     <div class="setting-row"><div><b data-t="telegramChat">Telegram чат</b><p>Спілкуйся з іншими гравцями</p></div><a class="secondary" href="https://t.me/zentrachatgames" target="_blank">Відкрити ↗</a></div>
+     <div class="setting-row"><div><b data-t="telegramChannel">Telegram канал</b><p>Новини та оновлення ZENTRA</p></div><a class="secondary" href="https://t.me/zentraminigames" target="_blank">Відкрити ↗</a></div>
+     <div class="setting-row"><div><b>TikTok</b><p>Наші відео</p></div><a class="secondary" href="https://www.tiktok.com/@zentra_gamess" target="_blank">Відкрити ↗</a></div>
+    </div>
+   </section>
+
+   <section class="page" id="page-game">
+    <div class="row" style="margin-bottom:15px">
+     <div><div class="eyebrow" data-t="gameRoom">ІГРОВА КІМНАТА</div><h1 id="gameTitle">Гра</h1><p class="sub">Код: <b id="roomCodeLabel"></b></p></div>
+     <button class="ghost" onclick="leaveRoom()" data-t="leave">Вийти</button>
+    </div>
+    <div class="card">
+     <div class="row"><div><b data-t="players">Гравці</b><p class="sub" id="playerCount"></p></div><button class="ghost" onclick="copyRoomCode()" data-t="invite">Запросити</button></div>
+     <div id="playerList" style="margin:12px 0"></div>
+     <button class="primary" id="startButton" onclick="startGame()" data-t="startGame">Почати гру</button>
+     <div id="gameMessage" class="notice"></div>
+    </div>
+    <div id="gameBoard" class="card" style="margin-top:16px">
+     <div class="empty" data-t="waiting">Очікуємо початку гри...</div>
+    </div>
+   </section>
+  </div>
+ </main>
+</div>
+<script>
+const API="https://zentra-1-1322.onrender.com";
+let uid=localStorage.getItem("zentra_uid")||("u_"+crypto.randomUUID());
+localStorage.setItem("zentra_uid",uid);
+let profile=null,room=null,socket=null,currentName="";
+let lang=localStorage.getItem("zentra_lang")||"uk";
+
+const words={
+uk:{
+welcome:"ЛАСКАВО ПРОСИМО",createProfile:"Створи свій профіль",profileHint:"Обери унікальний нікнейм і приєднуйся до спільноти ZENTRA.",nickname:"Нікнейм",enter:"Увійти в ZENTRA",language:"Мова",workspace:"РОБОЧИЙ ПРОСТІР",home:"Головна",games:"Ігри",tasks:"Завдання",lobbies:"Відкриті лобі",rooms:"Кімнати",account:"АКАУНТ",profile:"Профіль",settings:"Налаштування",connecting:"Підключення...",points:"балів",community:"ТВОЯ ІГРОВА СПІЛЬНОТА",hello:"Привіт",heroText:"Грай, знайомся, створюй кімнати та запрошуй друзів. Твоя пригода в ZENTRA починається тут.",playNow:"Грати зараз →",yourPoints:"ТВОЇ БАЛИ",streak:"СЕРІЯ ВХОДІВ",availableRooms:"ВІДКРИТІ ЛОБІ",featuredGames:"Популярні ігри",allGames:"Усі ігри →",tttDesc:"Класична гра для двох гравців.",twoPlayers:"2 ГРАВЦІ",durakDesc:"Карткова гра з друзями.",cards:"КАРТИ",mafiaDesc:"Знайди мафію серед гравців.",social:"КОМАНДНА",entertainment:"РОЗВАГИ",gamesHint:"Обирай гру та запрошуй друзів.",createRoom:"Створити кімнату",pokerDesc:"Перевір свою удачу та стратегію.",lobbyHint:"Знаходь кімнати та приєднуйся до інших гравців.",refresh:"↻ Оновити",loading:"Завантаження...",playTogether:"ГРАЙ РАЗОМ",roomsHint:"Створи власну кімнату або приєднайся за кодом.",newRoom:"Нова кімната",gameType:"Тип гри",roomName:"Твоє ім'я в кімнаті",publicRoom:"Зробити кімнату відкритою",joinRoom:"Приєднатися",joinHint:"Введи код кімнати, який дав тобі друг.",roomCode:"Код кімнати",join:"Приєднатися до кімнати",zentraMember:"Учасник ZENTRA",editProfile:"Редагувати профіль",save:"Зберегти зміни",preferences:"ПЕРСОНАЛІЗАЦІЯ",settingsHint:"Налаштуй ZENTRA під себе.",languageHint:"Мова інтерфейсу застосунку.",theme:"Оформлення",themeHint:"Темний стиль ZENTRA.",darkTheme:"ТЕМНА",version:"Версія",copyCode:"Скопіювати код",startGame:"Почати гру",leave:"Вийти",nickTaken:"Цей нікнейм уже зайнятий! Обери інший.",loadingError:"Не вдалося завантажити.",noLobbies:"Поки немає відкритих кімнат.",players:"Гравців",roomCreated:"Кімнату створено!",gameWait:"Для цієї гри ігрова механіка ще розробляється.",gameStarted:"Гра почалася!",winner:"Результат",draw:"Нічия",copySuccess:"Код скопійовано!",nameSaved:"Нікнейм збережено!",namePrompt:"Введи новий нікнейм",invalidName:"Введи нікнейм.",roomNeeded:"Потрібно щонайменше 2 гравці.",
+mafiaNight:"НІЧ",mafiaDay:"ДЕНЬ",mafiaFinished:"ГРУ ЗАВЕРШЕНО",mafiaRole:"ТВОЯ РОЛЬ",mafiaAlive:"Живі гравці",mafiaDead:"Вибув",mafiaCitizens:"Мирні жителі",mafiaTeam:"Твоя команда",mafiaWait:"Очікуємо на дії інших гравців...",mafiaChoose:"Обери гравця",mafiaKill:"Убити",mafiaSave:"Врятувати",mafiaCheck:"Перевірити",mafiaVote:"Проголосувати",mafiaSubmit:"Підтвердити дію",mafiaActionDone:"Ти вже зробив свій хід. Очікуємо інших.",mafiaYouDead:"Ти вибув із гри. Тепер можеш спостерігати за перебігом.",mafiaCheckResult:"Результат перевірки",mafiaIsMafia:"Цей гравець — мафія!",mafiaNotMafia:"Цей гравець не є мафією.",mafiaNoCheck:"Поки немає результатів перевірки.",mafiaMafiaWin:"Мафія перемогла!",mafiaTownWin:"Мирні жителі перемогли!",mafiaRound:"Раунд",mafiaVotes:"Проголосували",mafiaLast:"Остання подія",mafiaNoTarget:"Обери гравця для дії.",mafiaRoleMafia:"МАФІЯ",mafiaRoleDoctor:"ЛІКАР",mafiaRoleDetective:"ДЕТЕКТИВ",mafiaRoleCitizen:"МИРНИЙ ЖИТЕЛЬ",mafiaNeedFour:"Для Мафії потрібно щонайменше 4 гравці.",mafiaStartHint:"Мафія починається від чотирьох гравців. Запроси друзів за кодом кімнати.",mafiaEliminated:"Вибув:",mafiaWaiting:"Гра ще не почалася."
+},
+en:{
+welcome:"WELCOME",createProfile:"Create your profile",profileHint:"Choose a unique nickname and join the ZENTRA community.",nickname:"Nickname",enter:"Enter ZENTRA",language:"Language",workspace:"WORKSPACE",home:"Home",games:"Games",tasks:"Tasks",lobbies:"Open lobbies",rooms:"Rooms",account:"ACCOUNT",profile:"Profile",settings:"Settings",connecting:"Connecting...",points:"points",community:"YOUR GAMING COMMUNITY",hello:"Hello",heroText:"Play, meet people, create rooms and invite friends. Your ZENTRA adventure starts here.",playNow:"Play now →",yourPoints:"YOUR POINTS",streak:"LOGIN STREAK",availableRooms:"OPEN LOBBIES",featuredGames:"Featured games",allGames:"All games →",tttDesc:"Classic game for two players.",twoPlayers:"2 PLAYERS",durakDesc:"A card game with friends.",cards:"CARDS",mafiaDesc:"Find the mafia among the players.",social:"TEAM GAME",entertainment:"ENTERTAINMENT",gamesHint:"Choose a game and invite your friends.",createRoom:"Create room",pokerDesc:"Test your luck and strategy.",lobbyHint:"Find rooms and join other players.",refresh:"↻ Refresh",loading:"Loading...",playTogether:"PLAY TOGETHER",roomsHint:"Create your own room or join with a code.",newRoom:"New room",gameType:"Game type",roomName:"Your name in the room",publicRoom:"Make room public",joinRoom:"Join room",joinHint:"Enter the room code shared by your friend.",roomCode:"Room code",join:"Join room",zentraMember:"ZENTRA member",editProfile:"Edit profile",save:"Save changes",preferences:"PERSONALIZATION",settingsHint:"Customize ZENTRA to your liking.",languageHint:"Application interface language.",theme:"Appearance",themeHint:"ZENTRA dark style.",darkTheme:"DARK",version:"Version",copyCode:"Copy code",startGame:"Start game",leave:"Leave",nickTaken:"This nickname is already taken! Choose another.",loadingError:"Could not load.",noLobbies:"There are no open rooms yet.",players:"Players",roomCreated:"Room created!",gameWait:"The game mechanics for this game are still in development.",gameStarted:"The game has started!",winner:"Result",draw:"Draw",copySuccess:"Code copied!",nameSaved:"Nickname saved!",namePrompt:"Enter a new nickname",invalidName:"Enter a nickname.",roomNeeded:"At least 2 players are required.",
+mafiaNight:"NIGHT",mafiaDay:"DAY",mafiaFinished:"GAME OVER",mafiaRole:"YOUR ROLE",mafiaAlive:"Alive players",mafiaDead:"Eliminated",mafiaCitizens:"Citizens",mafiaTeam:"Your team",mafiaWait:"Waiting for other players...",mafiaChoose:"Choose a player",mafiaKill:"Kill",mafiaSave:"Save",mafiaCheck:"Investigate",mafiaVote:"Vote",mafiaSubmit:"Confirm action",mafiaActionDone:"You have already acted. Waiting for others.",mafiaYouDead:"You have been eliminated. You can watch the game.",mafiaCheckResult:"Investigation result",mafiaIsMafia:"This player is mafia!",mafiaNotMafia:"This player is not mafia.",mafiaNoCheck:"No investigation results yet.",mafiaMafiaWin:"The mafia wins!",mafiaTownWin:"The citizens win!",mafiaRound:"Round",mafiaVotes:"Votes submitted",mafiaLast:"Latest event",mafiaNoTarget:"Choose a player first.",mafiaRoleMafia:"MAFIA",mafiaRoleDoctor:"DOCTOR",mafiaRoleDetective:"DETECTIVE",mafiaRoleCitizen:"CITIZEN",mafiaNeedFour:"Mafia requires at least 4 players.",mafiaStartHint:"Mafia starts with at least four players. Invite friends using the room code.",mafiaEliminated:"Eliminated:",mafiaWaiting:"The game has not started yet."
+},
+ru:{
+welcome:"ДОБРО ПОЖАЛОВАТЬ",createProfile:"Создай профиль",profileHint:"Выбери уникальный никнейм и присоединяйся к ZENTRA.",nickname:"Никнейм",enter:"Войти в ZENTRA",language:"Язык",workspace:"РАБОЧЕЕ ПРОСТРАНСТВО",home:"Главная",games:"Игры",lobbies:"Открытые лобби",rooms:"Комнаты",account:"АККАУНТ",profile:"Профиль",settings:"Настройки",connecting:"Подключение...",community:"ТВОЁ ИГРОВОЕ СООБЩЕСТВО",hello:"Привет",heroText:"Играй, знакомься, создавай комнаты и приглашай друзей.",playNow:"Играть сейчас →",availableRooms:"ОТКРЫТЫЕ ЛОББИ",featuredGames:"Популярные игры",allGames:"Все игры →",tttDesc:"Классическая игра для двух игроков.",twoPlayers:"2 ИГРОКА",durakDesc:"Карточная игра с друзьями.",cards:"КАРТЫ",mafiaDesc:"Найди мафию среди игроков.",social:"КОМАНДНАЯ",entertainment:"РАЗВЛЕЧЕНИЯ",gamesHint:"Выбирай игру и приглашай друзей.",createRoom:"Создать комнату",pokerDesc:"Проверь удачу и стратегию.",lobbyHint:"Находи комнаты и присоединяйся к игрокам.",refresh:"↻ Обновить",playTogether:"ИГРАЙ ВМЕСТЕ",roomsHint:"Создай комнату или присоединяйся по коду.",newRoom:"Новая комната",gameType:"Тип игры",roomName:"Твоё имя в комнате",publicRoom:"Сделать комнату открытой",joinRoom:"Присоединиться",joinHint:"Введи код комнаты, который дал друг.",roomCode:"Код комнаты",join:"Войти в комнату",zentraMember:"Участник ZENTRA",editProfile:"Изменить профиль",save:"Сохранить",preferences:"ПЕРСОНАЛИЗАЦИЯ",settingsHint:"Настрой ZENTRA под себя.",languageHint:"Язык интерфейса приложения.",theme:"Оформление",themeHint:"Тёмный стиль ZENTRA.",darkTheme:"ТЁМНАЯ",version:"Версия",copyCode:"Скопировать код",startGame:"Начать игру",leave:"Выйти",nickTaken:"Этот никнейм уже занят! Выбери другой.",loadingError:"Не удалось загрузить.",noLobbies:"Открытых комнат пока нет.",players:"Игроки",roomCreated:"Комната создана!",gameWait:"Ожидание начала игры.",gameStarted:"Игра началась!",winner:"Результат",draw:"Ничья",copySuccess:"Код скопирован!",nameSaved:"Никнейм сохранён!",invalidName:"Введи никнейм.",mafiaNight:"НОЧЬ",mafiaDay:"ДЕНЬ",mafiaFinished:"ИГРА ОКОНЧЕНА",mafiaRole:"ТВОЯ РОЛЬ",mafiaAlive:"Живые игроки",mafiaDead:"Выбыл",mafiaTeam:"Твоя команда",mafiaWait:"Ожидаем действия других игроков...",mafiaChoose:"Выбери игрока",mafiaKill:"Убить",mafiaSave:"Спасти",mafiaCheck:"Проверить",mafiaVote:"Голосовать",mafiaActionDone:"Ты уже сделал ход. Ждём остальных.",mafiaYouDead:"Ты выбыл из игры. Можешь наблюдать.",mafiaCheckResult:"Результат проверки",mafiaIsMafia:"Этот игрок — мафия!",mafiaNotMafia:"Этот игрок не мафия.",mafiaMafiaWin:"Мафия победила!",mafiaTownWin:"Мирные жители победили!",mafiaRound:"Раунд",mafiaVotes:"Проголосовали",mafiaLast:"Последнее событие",mafiaNoTarget:"Сначала выбери игрока.",mafiaRoleMafia:"МАФИЯ",mafiaRoleDoctor:"ВРАЧ",mafiaRoleDetective:"ДЕТЕКТИВ",mafiaRoleCitizen:"МИРНЫЙ ЖИТЕЛЬ",mafiaNeedFour:"Для Мафии нужно от 4 игроков.",mafiaStartHint:"Для игры в Мафию нужно минимум четыре игрока. Пригласи друзей по коду комнаты.",mafiaWaiting:"Игра ещё не началась."}
+};
+
+function t(k){return words[lang][k]||words.uk[k]||k}
+let activePage="home";
+
+function setLanguage(value){
+ lang=["uk","en","ru"].includes(value)?value:"uk";
+ localStorage.setItem("zentra_lang",lang);
+ document.documentElement.lang=lang;
+ document.querySelectorAll("[data-t]").forEach(el=>el.textContent=t(el.dataset.t));
+ const ls=document.getElementById("languageSelect");if(ls)ls.value=lang;
+ const fs=document.getElementById("firstLanguage");if(fs)fs.value=lang;
+ const cp=document.getElementById("currentPageName");if(cp)cp.textContent=t(activePage);
+ if(room)updateRoom(room);
+}
+
+function showPage(page,button){
+ activePage=page;
+ document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+ const target=document.getElementById("page-"+page);
+ if(target)target.classList.add("active");
+ document.querySelectorAll(".nav-btn").forEach(b=>b.classList.remove("active"));
+ if(button)button.classList.add("active");
+ else document.querySelectorAll(".nav-btn").forEach(b=>{if(b.getAttribute("onclick")?.includes("'"+page+"'"))b.classList.add("active")});
+ document.getElementById("currentPageName").textContent=t(page);
+ if(page==="lobbies")loadLobbies();
+ if(page==="home")refreshHome();
+}
+
+async function request(path,options={}){
+ const r=await fetch(API+path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok)throw Error(data.detail||"Request failed");
+ return data;
+}
+
+function showError(message){document.getElementById("profileError").textContent=message}
+
+function updateProfile(){
+ if(!profile)return;
+ currentName=profile.name;
+ const initial=(profile.name||"Z").charAt(0).toUpperCase();
+ ["topAvatar","profileAvatar"].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=initial});
+ document.getElementById("helloName").textContent=profile.name;
+ document.getElementById("profileName").textContent=profile.name;
+ document.getElementById("newNickname").value=profile.name;
+ document.getElementById("roomName").value=profile.name;
+ const premiumStatus=document.getElementById("premiumStatus");
+ const premiumButton=document.getElementById("premiumButton");
+ if(premiumStatus)premiumStatus.textContent=profile.premium?"PREMIUM АКТИВНИЙ":"Преміум ще не придбано";
+ if(premiumButton){premiumButton.disabled=!!profile.premium;premiumButton.textContent=profile.premium?"PREMIUM АКТИВНИЙ":"Придбати за ⭐ 20";}
+}
+
+function showApp(){
+ document.getElementById("profileScreen").classList.add("hidden");
+ document.getElementById("appScreen").classList.remove("hidden");
+ updateProfile();
+ setLanguage(lang);
+ refreshHome();
+}
+
+async function saveProfile(){
+ const name=document.getElementById("nickname").value.trim();
+ if(!name){showError(t("invalidName"));return}
+ try{
+  profile=await request("/api/profile",{method:"POST",body:JSON.stringify({uid,name})});
+  showApp();
+ }catch(e){showError(e.message.includes("зайнятий")||e.message.includes("taken")?t("nickTaken"):e.message)}
+}
+
+async function init(){
+ try{
+  await request("/health");
+  document.getElementById("serverStatus").textContent="● Online";
+  profile=await request("/api/profile/"+encodeURIComponent(uid));
+  showApp();
+ }catch(e){
+  document.getElementById("serverStatus").textContent="● Online";
+ }
+ setLanguage(lang);
+}
+
+async function refreshHome(){
+ try{const list=await request("/api/lobbies");document.getElementById("homeLobbies").textContent=list.length}
+ catch(e){document.getElementById("homeLobbies").textContent="0"}
+}
+
+function chooseGame(game){
+ document.getElementById("game").value=game;
+ showPage("rooms");
+}
+
+async function createRoom(){
+ try{
+  const name=document.getElementById("roomName").value.trim()||currentName;
+  currentName=name;
+  room=await request("/api/rooms",{method:"POST",body:JSON.stringify({name,game:document.getElementById("game").value,open:document.getElementById("openRoom").checked})});
+  enterRoom(room);
+ }catch(e){alert(e.message)}
+}
+
+async function joinRoom(){
+ try{
+  const code=document.getElementById("joinCode").value.trim();
+  room=await request("/api/rooms/join",{method:"POST",body:JSON.stringify({code,name:currentName})});
+  enterRoom(room);
+ }catch(e){alert(e.message)}
+}
+
+async function loadLobbies(){
+ const box=document.getElementById("lobbyList");box.textContent=t("loading");
+ try{
+  const list=await request("/api/lobbies");box.innerHTML="";
+  if(!list.length){box.innerHTML='<div class="empty">'+t("noLobbies")+'</div>';return}
+  list.forEach(r=>{
+   const div=document.createElement("div");div.className="room-item";
+   const info=document.createElement("div");
+   const title=document.createElement("b");title.textContent=r.game.toUpperCase()+" · "+r.code;
+   const desc=document.createElement("p");desc.textContent=t("players")+": "+r.players.length;
+   info.append(title,desc);
+   const btn=document.createElement("button");btn.className="primary";btn.textContent=t("join");
+   btn.onclick=async()=>{try{room=await request("/api/rooms/join",{method:"POST",body:JSON.stringify({code:r.code,name:currentName})});enterRoom(room)}catch(e){alert(e.message)}};
+   div.append(info,btn);box.append(div);
+  });
+ }catch(e){box.textContent=e.message}
+}
+
+function enterRoom(r){
+ room=r;
+ showPage("game");
+ document.getElementById("currentCode").textContent=r.code;
+ document.getElementById("gameTitle").textContent=r.game.toUpperCase();
+ updateRoom(r);
+ connectSocket();
+}
+
+function updateRoom(r){
+ room=r;
+ document.getElementById("players").textContent=t("players")+": "+r.players.join(", ");
+ document.getElementById("currentCode").textContent=r.code;
+ const area=document.getElementById("gameArea");
+ area.innerHTML="";
+ const controls=document.getElementById("gameControls");
+ if(controls)controls.style.display=r.started?"none":"flex";
+
+ if(r.game==="ttt"){
+  renderTTT(r,area);
+ }else if(r.game==="mafia"){
+  renderMafia(r);
+ }else if(r.game==="crocodile"){
+  renderCrocodile(r,area);
+ }else if(r.game==="durak"){
+  renderDurak(r,area);
+ }else if(r.game==="poker"){
+  renderPoker(r,area);
+ }
+}
+
+function renderTTT(r,area){
+ const board=document.createElement("div");
+ board.id="board";
+
+ (r.state?.board||Array(9).fill("")).forEach((v,i)=>{
+  const b=document.createElement("button");
+  b.className="cell";
+  b.textContent=v||" ";
+  b.disabled=!!v||!!r.state?.winner;
+  b.onclick=()=>move(i);
+  board.append(b);
+ });
+
+ area.append(board);
+
+ if(r.state?.winner){
+  const p=document.createElement("p");
+  p.className="success";
+  p.textContent=t("winner")+": "+(r.state.winner==="draw"?t("draw"):r.state.winner);
+  area.append(p);
+ }
+}
+
+function renderCrocodile(r,area){
+ const state=r.state||{}, players=r.players||[];
+ const alive=state.alive||players;
+ const turn=alive.length?alive[(state.turn||0)%alive.length]:null;
+ const panel=document.createElement("div"); panel.className="mafia-panel";
+ const heading=document.createElement("h2"); heading.textContent="🐊 "+(lang==="ru"?"Крокодил-зубастик":lang==="en"?"Crocodile Dentist":"Крокодил-зубастик");
+ const status=document.createElement("p"); status.className="sub";
+ status.textContent=state.finished
+  ? (lang==="ru"?"Крокодил захлопнулся! Проиграл: ":lang==="en"?"Snap! Loser: ":"Крокодил клацнув! Програв: ")+(state.loser||"—")+(state.winner?(" · "+(lang==="ru"?"Победитель: ":lang==="en"?"Winner: ":"Переможець: ")+state.winner):"")
+  : (state.loser?(lang==="ru"?"Выбыл: ":lang==="en"?"Out: ":"Вибув: ")+state.loser+". ":"")+(lang==="ru"?"Ход: ":lang==="en"?"Turn: ":"Хід гравця: ")+(turn||"—")+(turn===currentName?(lang==="ru"?" — выбери зуб!":lang==="en"?" — pick a tooth!":" — обери зуб!"):(lang==="ru"?" — ожидание...":lang==="en"?" — waiting...":" — очікуємо..."));
+ panel.append(heading,status);
+ const teeth=document.createElement("div"); teeth.style.cssText="display:grid;grid-template-columns:repeat(6,minmax(38px,1fr));gap:8px;margin:18px 0";
+ for(let i=0;i<12;i++){
+  const btn=document.createElement("button"); btn.className="secondary"; btn.style.cssText="min-height:54px;font-size:22px";
+  const pressed=(state.pressed||[]).includes(i); btn.textContent=pressed?"🦷":"😁";
+  btn.disabled=pressed||state.finished||turn!==currentName;
+  btn.onclick=()=>{if(socket&&socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({action:"crocodile_press",tooth:i}));};
+  teeth.append(btn);
+ }
+ panel.append(teeth);
+ const roster=document.createElement("p"); roster.className="sub"; roster.textContent=(lang==="ru"?"Игроки: ":lang==="en"?"Players: ":"Гравці: ")+players.join(" · ");
+ panel.append(roster); area.append(panel);
+}
+ function sendGameAction(action){
+ if(socket&&socket.readyState===WebSocket.OPEN){
+  socket.send(JSON.stringify(action));
+ }else{
+  alert("WebSocket disconnected");
+ }
+}
+
+function cardText(c){
+ return c?c.r+c.s:"—";
+}
+
+// =========================
+// ДУРЕНЬ
+// =========================
+
+function renderDurak(r,area){
+ const st=r.state||{};
+ const panel=document.createElement("div");
+ panel.className="mafia-panel";
+
+ const h=document.createElement("h2");
+ h.textContent="🃏 Дурень";
+
+ const info=document.createElement("p");
+ info.className="mafia-result";
+ info.textContent=(st.message||"")+" · Козир: "+(st.trump||"—")+" · Колода: "+(st.deck_count||0);
+
+ const table=document.createElement("div");
+ table.className="mafia-players";
+
+ (st.table||[]).forEach(pair=>{
+  const d=document.createElement("div");
+  d.className="mafia-player";
+  d.textContent=cardText(pair.attack)+" / "+cardText(pair.defense);
+  table.append(d);
+ });
+
+ const hand=document.createElement("div");
+ hand.className="mafia-actions";
+
+ (r.my_hand||[]).forEach((c,i)=>{
+  const b=document.createElement("button");
+  b.className="secondary";
+  b.textContent=cardText(c);
+
+  b.onclick=()=>{
+   let type;
+
+   if(currentName===st.attacker){
+    type=st.phase==="attack"?"attack":"throw";
+   }else{
+    type="defend";
+   }
+
+   sendGameAction({
+    action:"durak",
+    type,
+    card:i
+   });
+  };
+
+  hand.append(b);
+ });
+
+ panel.append(
+  h,
+  info,
+  table,
+  document.createTextNode("Твої карти"),
+  hand
+ );
+
+ const controls=document.createElement("div");
+ controls.className="mafia-actions";
+
+ if(currentName===st.defender){
+  for(const [type,label] of [
+   ["take","Взяти карти"],
+   ["pass","Завершити хід"]
+  ]){
+   const b=document.createElement("button");
+   b.className="primary";
+   b.textContent=label;
+   b.onclick=()=>sendGameAction({action:"durak",type});
+   controls.append(b);
+  }
+ }
+
+ panel.append(controls);
+
+ const roster=document.createElement("p");
+ roster.className="sub";
+ roster.textContent=(r.players||[])
+  .map(p=>p+" ("+((r.hand_counts||{})[p]||0)+")")
+  .join(" · ");
+
+ panel.append(roster);
+
+ if(st.winner){
+  const win=document.createElement("h2");
+  win.textContent="🏆 "+st.winner+" переміг";
+  panel.append(win);
+ }
+
+ area.append(panel);
+}
+
+// =========================
+// ПОКЕР
+// =========================
+
+function renderPoker(r,area){
+ const st=r.state||{};
+ const panel=document.createElement("div");
+ panel.className="mafia-panel";
+
+ const h=document.createElement("h2");
+ h.textContent="♠️ Texas Hold'em";
+
+ const info=document.createElement("p");
+ info.className="mafia-result";
+ info.textContent=
+  (st.message||"")+
+  " · Етап: "+(st.phase||"")+
+  " · Банк: "+(st.pot||0);
+
+ const community=document.createElement("h3");
+ community.textContent=
+  "Карти на столі: "+
+  (st.community||[]).map(cardText).join("   ");
+
+ const hand=document.createElement("h3");
+ hand.textContent=
+  "Твої карти: "+
+  (r.my_hand||[]).map(cardText).join("   ");
+
+ const roster=document.createElement("p");
+ roster.className="sub";
+ roster.textContent=(r.players||[])
+  .map(p=>
+   p+" — "+((st.chips||{})[p]||0)+" фішок"+
+   ((st.folded||[]).includes(p)?" (пас)":"")
+  )
+  .join(" · ");
+
+ panel.append(h,info,community,hand,roster);
+
+ if(st.phase!=="finished"){
+  const controls=document.createElement("div");
+  controls.className="mafia-actions";
+
+  [
+   ["check","Чек"],
+   ["call","Колл"],
+   ["raise","Рейз"],
+   ["fold","Фолд"]
+  ].forEach(([type,label])=>{
+   const b=document.createElement("button");
+   b.className="primary";
+   b.textContent=label;
+
+   b.onclick=()=>{
+    sendGameAction({
+     action:"poker",
+     type,
+     amount:40
+    });
+   };
+
+   controls.append(b);
+  });
+
+  panel.append(controls);
+ }else{
+  const w=document.createElement("h2");
+  w.textContent=
+   "🏆 Переможець: "+
+   (Array.isArray(st.winner)
+    ?st.winner.join(", ")
+    :st.winner||"—");
+
+  panel.append(w);
+ }
+
+ area.append(panel);
+}
+
+// =========================
+// МАФІЯ
+// =========================
+
+function roleLabel(role){
+ const labels={
+  mafia:t("mafiaRoleMafia"),
+  doctor:t("mafiaRoleDoctor"),
+  detective:t("mafiaRoleDetective"),
+  citizen:t("mafiaRoleCitizen")
+ };
+
+ return labels[role]||role||"";
+}
+
+function renderMafia(r){
+ const area=document.getElementById("gameArea");
+ area.innerHTML="";
+
+ const state=r.state||{};
+ const started=!!r.started;
+
+ if(!started){
+  const box=document.createElement("div");
+  box.className="mafia-panel";
+
+  const badge=document.createElement("div");
+  badge.className="mafia-phase";
+  badge.textContent="🕵️ MAFIA";
+
+  const title=document.createElement("h2");
+  title.textContent=t("mafiaWaiting");
+
+  const info=document.createElement("p");
+  info.className="sub";
+  info.textContent=t("mafiaStartHint");
+
+  const count=document.createElement("div");
+  count.className="notice";
+  count.textContent=t("players")+": "+r.players.length+" / 4";
+
+  box.append(badge,title,info,count);
+  area.append(box);
+  return;
+ }
+
+ const phase=state.phase;
+ const role=r.my_role;
+ const alive=state.alive||[];
+ const myAlive=r.my_alive!==false;
+ const done=!!r.my_action_done;
+
+ const top=document.createElement("div");
+ top.className="mafia-panel";
+
+ const phaseBadge=document.createElement("span");
+ phaseBadge.className="mafia-phase";
+ phaseBadge.textContent=
+  phase==="night"?"🌙 "+t("mafiaNight"):
+  phase==="day"?"☀️ "+t("mafiaDay"):
+  "🏆 "+t("mafiaFinished");
+
+ const round=document.createElement("p");
+ round.className="sub";
+ round.textContent=t("mafiaRound")+" "+(state.round||1);
+
+ const roleTitle=document.createElement("div");
+ roleTitle.className="stat-caption";
+ roleTitle.style.marginTop="16px";
+ roleTitle.textContent=t("mafiaRole");
+
+ const roleName=document.createElement("div");
+ roleName.className="mafia-role "+(role||"");
+ roleName.textContent=roleLabel(role);
+
+ top.append(phaseBadge,round,roleTitle,roleName);
+
+ if(role==="mafia"&&r.mafia_teammates?.length){
+  const team=document.createElement("div");
+  team.className="mafia-private";
+  team.textContent=t("mafiaTeam")+": "+r.mafia_teammates.join(", ");
+  top.append(team);
+ }
+
+ area.append(top);
+
+ const result=document.createElement("div");
+ result.className="mafia-result";
+ result.innerHTML="<b>"+t("mafiaLast")+"</b><br>";
+ result.append(document.createTextNode(state.last_result||""));
+ area.append(result);
+
+ if(r.my_check){
+  const check=document.createElement("div");
+  check.className="mafia-private";
+  check.innerHTML="<b>"+t("mafiaCheckResult")+"</b><br>";
+
+  check.append(document.createTextNode(
+   r.my_check.target+": "+
+   (r.my_check.is_mafia
+    ?t("mafiaIsMafia")
+    :t("mafiaNotMafia"))
+  ));
+
+  area.append(check);
+ }
+
+ if(phase==="finished"||state.winner){
+  const win=document.createElement("div");
+  win.className="mafia-winner";
+
+  const heading=document.createElement("strong");
+  heading.textContent=
+   state.winner==="mafia"
+    ?t("mafiaMafiaWin")
+    :t("mafiaTownWin");
+
+  const detail=document.createElement("p");
+  detail.className="sub";
+  detail.textContent=state.last_result||"";
+
+  win.append(
+   document.createTextNode("🏆"),
+   heading,
+   detail
+  );
+
+  area.append(win);
+  renderMafiaPlayers(area,r);
+  return;
+ }
+
+ if(!myAlive){
+  const dead=document.createElement("div");
+  dead.className="mafia-dead";
+  dead.textContent="☠ "+t("mafiaYouDead");
+  area.append(dead);
+
+  renderMafiaPlayers(area,r);
+  return;
+ }
+
+ if(done){
+  const waiting=document.createElement("div");
+  waiting.className="mafia-action-done";
+  waiting.textContent="✓ "+t("mafiaActionDone");
+  area.append(waiting);
+ }else if(phase==="night"){
+  renderNightActions(area,r);
+ }else if(phase==="day"){
+  renderDayVote(area,r);
+ }
+
+ renderMafiaPlayers(area,r);
+}
+
+function renderNightActions(area,r){
+ const role=r.my_role;
+
+ if(role==="citizen"){
+  const box=document.createElement("div");
+  box.className="notice";
+  box.textContent=t("mafiaWait");
+  area.append(box);
+  return;
+ }
+
+ const panel=document.createElement("div");
+ panel.className="mafia-panel";
+
+ const title=document.createElement("h3");
+ title.textContent=t("mafiaNight")+" — "+t("mafiaChoose");
+ panel.append(title);
+
+ const select=document.createElement("select");
+ select.className="mafia-select";
+ select.id="mafiaTarget";
+
+ const placeholder=document.createElement("option");
+ placeholder.value="";
+ placeholder.textContent=t("mafiaChoose");
+ select.append(placeholder);
+
+ (r.state?.alive||[]).forEach(name=>{
+  if(name===currentName)return;
+  if(role==="mafia"&&(r.mafia_teammates||[]).includes(name))return;
+
+  const option=document.createElement("option");
+  option.value=name;
+  option.textContent=name;
+  select.append(option);
+ });
+
+ const actionButton=document.createElement("button");
+ actionButton.className="primary";
+ actionButton.style.width="100%";
+
+ actionButton.textContent=t(
+  role==="mafia"?"mafiaKill":
+  role==="doctor"?"mafiaSave":
+  "mafiaCheck"
+ );
+
+ actionButton.onclick=()=>{
+  const target=select.value;
+
+  if(!target){
+   alert(t("mafiaNoTarget"));
+   return;
+  }
+
+  sendMafiaAction(
+   role==="mafia"?"kill":
+   role==="doctor"?"save":
+   "check",
+   target
+  );
+ };
+
+ panel.append(select,actionButton);
+ area.append(panel);
+}
+
+function renderDayVote(area,r){
+ const panel=document.createElement("div");
+ panel.className="mafia-panel";
+
+ const title=document.createElement("h3");
+ title.textContent="☀️ "+t("mafiaDay")+" — "+t("mafiaVote");
+ panel.append(title);
+
+ const select=document.createElement("select");
+ select.className="mafia-select";
+ select.id="mafiaTarget";
+
+ const placeholder=document.createElement("option");
+ placeholder.value="";
+ placeholder.textContent=t("mafiaChoose");
+ select.append(placeholder);
+
+ (r.state?.alive||[]).forEach(name=>{
+  if(name===currentName)return;
+
+  const option=document.createElement("option");
+  option.value=name;
+  option.textContent=name;
+  select.append(option);
+ });
+
+ const button=document.createElement("button");
+ button.className="primary";
+ button.style.width="100%";
+ button.textContent=t("mafiaVote");
+
+ button.onclick=()=>{
+  const target=select.value;
+
+  if(!target){
+   alert(t("mafiaNoTarget"));
+   return;
+  }
+
+  sendMafiaVote(target);
+ };
+
+ const votes=document.createElement("p");
+ votes.className="sub";
+ votes.textContent=
+  t("mafiaVotes")+": "+
+  (r.state?.votes_count||0)+" / "+
+  (r.state?.players_count||0);
+
+ panel.append(select,button,votes);
+ area.append(panel);
+}
+
+function renderMafiaPlayers(area,r){
+ const panel=document.createElement("div");
+ panel.className="mafia-panel";
+
+ const title=document.createElement("h3");
+ title.textContent="👥 "+t("mafiaAlive");
+ panel.append(title);
+
+ const players=document.createElement("div");
+ players.className="mafia-players";
+
+ const alive=r.state?.alive||[];
+
+ (r.players||[]).forEach(name=>{
+  const item=document.createElement("div");
+  const isAlive=alive.includes(name);
+
+  item.className="mafia-player"+(isAlive?"":" dead");
+
+  const label=document.createElement("span");
+  label.textContent=
+   name+(name===currentName
+    ?" ("+(lang==="uk"?"ти":lang==="ru"?"ты":"you")+")"
+    :"");
+
+  const dot=document.createElement("span");
+  dot.className="alive-dot";
+
+  item.append(label,dot);
+  players.append(item);
+ });
+
+ panel.append(players);
+ area.append(panel);
+}
+
+function sendMafiaAction(type,target){
+ if(!socket||socket.readyState!==WebSocket.OPEN){
+  alert("WebSocket не підключений. Спробуй ще раз.");
+  return;
+ }
+
+ socket.send(JSON.stringify({
+  action:"mafia",
+  type,
+  target
+ }));
+}
+
+function sendMafiaVote(target){
+ if(!socket||socket.readyState!==WebSocket.OPEN){
+  alert("WebSocket не підключений. Спробуй ще раз.");
+  return;
+ }
+
+ socket.send(JSON.stringify({
+  action:"vote",
+  target
+ }));
+}
+
+// =========================
+// WEBSOCKET
+// =========================
+
+function connectSocket(){
+ if(socket)socket.close();
+
+ const protocol=location.protocol==="https:"?"wss://":"ws://";
+
+ socket=new WebSocket(
+  protocol+
+  "zentra-1-1322.onrender.com/ws/"+
+  room.code+
+  "?name="+encodeURIComponent(currentName)
+ );
+
+ socket.onmessage=e=>{
+  const r=JSON.parse(e.data);
+  updateRoom(r);
+ };
+
+ socket.onerror=()=>{
+  console.log("ZENTRA WebSocket error");
+ };
+
+ socket.onclose=()=>{
+  console.log("ZENTRA WebSocket closed");
+ };
+}
+
+// =========================
+// ХРЕСТИКИ-НУЛИКИ
+// =========================
+
+function move(index){
+ if(socket?.readyState===WebSocket.OPEN){
+  socket.send(JSON.stringify({
+   action:"move",
+   index
+  }));
+ }
+}
+
+// =========================
+// ПОЧАТОК ГРИ
+// =========================
+
+async function startGame(){
+ if(!room)return;
+
+ try{
+  await request(
+   "/api/rooms/"+room.code+"/start",
+   {method:"POST"}
+  );
+
+  alert(t("gameStarted"));
+ }catch(e){
+  alert(e.message);
+ }
+}
+
+function leaveRoom(){
+ if(socket)socket.close();
+
+ socket=null;
+ room=null;
+
+ showPage("rooms");
+}
+
+function copyRoomCode(){
+ if(!room)return;
+
+ navigator.clipboard.writeText(room.code)
+  .then(()=>alert(t("copySuccess")))
+  .catch(()=>alert(room.code));
+}
+
+// =========================
+// ZENTRA PREMIUM
+// =========================
+
+async function buyPremium(){
+ try{
+  const result=await request(
+   "/api/premium/invoice",
+   {
+    method:"POST",
+    body:JSON.stringify({uid})
+   }
+  );
+
+  if(result.premium){
+   profile=await request(
+    "/api/profile/"+encodeURIComponent(uid)
+   );
+   updateProfile();
+   return;
+  }
+
+  const invoice=result.invoice_link;
+
+  if(window.Telegram?.WebApp?.openInvoice){
+   window.Telegram.WebApp.openInvoice(
+    invoice,
+    async status=>{
+     if(status==="paid"){
+      profile=await request(
+       "/api/profile/"+encodeURIComponent(uid)
+      );
+
+      updateProfile();
+      alert("ZENTRA PREMIUM активовано!");
+     }
+    }
+   );
+  }else{
+   window.open(invoice,"_blank","noopener");
+   alert("Після оплати повернись у ZENTRA та онови сторінку.");
+  }
+ }catch(e){
+  alert(e.message);
+ }
+}
+
+// =========================
+// ЗМІНА НІКНЕЙМУ
+// =========================
+
+async function changeName(){
+ const name=document.getElementById("newNickname").value.trim();
+ const msg=document.getElementById("nameMessage");
+
+ if(!name){
+  msg.textContent=t("invalidName");
+  return;
+ }
+
+ try{
+  profile=await request(
+   "/api/profile",
+   {
+    method:"POST",
+    body:JSON.stringify({uid,name})
+   }
+  );
+
+  updateProfile();
+
+  msg.textContent=t("nameSaved");
+  msg.className="success";
+ }catch(e){
+  msg.textContent=
+   e.message.includes("зайнятий")||e.message.includes("taken")
+    ?t("nickTaken")
+    :e.message;
+
+  msg.className="error";
+ }
+}
+
+// =========================
+// ЗАПУСК
+// =========================
+
+init();
+</script>
+</body>
+</html>
