@@ -499,35 +499,69 @@ async function loadLobbies(){
  }catch(e){box.textContent=e.message}
 }
 
-function enterRoom(r){
- room=r;
- showPage("game");
- document.getElementById("currentCode").textContent=r.code;
- document.getElementById("gameTitle").textContent=r.game.toUpperCase();
- updateRoom(r);
- connectSocket();
+function enterRoom(room){
+    if(!room || !room.code){
+        console.error("Некоректна кімната:", room);
+        return;
+    }
+
+    currentRoom = room;
+
+    const codeLabel = document.getElementById("roomCodeLabel");
+    const title = document.getElementById("gameTitle");
+
+    if(codeLabel) codeLabel.textContent = room.code;
+    if(title) title.textContent = room.game || "Гра";
+
+    showPage("game");
+
+    updateRoom(room);
+    connectSocket(room.code);
 }
 
-function updateRoom(r){
- room=r;
- document.getElementById("players").textContent=t("players")+": "+r.players.join(", ");
- document.getElementById("currentCode").textContent=r.code;
- const area=document.getElementById("gameArea");
- area.innerHTML="";
- const controls=document.getElementById("gameControls");
- if(controls)controls.style.display=r.started?"none":"flex";
 
- if(r.game==="ttt"){
-  renderTTT(r,area);
- }else if(r.game==="mafia"){
-  renderMafia(r);
- }else if(r.game==="crocodile"){
-  renderCrocodile(r,area);
- }else if(r.game==="durak"){
-  renderDurak(r,area);
- }else if(r.game==="poker"){
-  renderPoker(r,area);
- }
+function updateRoom(room){
+    if(!room) return;
+
+    currentRoom = room;
+
+    const codeLabel = document.getElementById("roomCodeLabel");
+    const count = document.getElementById("playerCount");
+    const list = document.getElementById("playerList");
+    const board = document.getElementById("gameBoard");
+    const start = document.getElementById("startButton");
+
+    if(codeLabel) codeLabel.textContent = room.code || "";
+
+    const players = room.players || [];
+
+    if(count){
+        count.textContent = players.length;
+    }
+
+    if(list){
+        list.innerHTML = "";
+
+        players.forEach(player => {
+            const name = typeof player === "string"
+                ? player
+                : player.name || "Гравець";
+
+            const item = document.createElement("div");
+            item.className = "player-item";
+            item.textContent = name;
+
+            list.appendChild(item);
+        });
+    }
+
+    if(start){
+        start.style.display = room.started ? "none" : "block";
+    }
+
+    if(board && room.game === "mafia" && room.started){
+        renderMafia(room);
+    }
 }
 
 function renderTTT(r,area){
