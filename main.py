@@ -1,13 +1,31 @@
+
 import os
+import json
+import uuid
 import random
 import sqlite3
-import json
+import asyncio
 import urllib.request
 import urllib.error
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Request
+from datetime import datetime, timezone
+from typing import Optional, Any
+
+from fastapi import (
+    FastAPI,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+    Request,
+    Header,
+)
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+# ============================================================
+# ZENTRA API
+# ============================================================
 
 app = FastAPI(title="ZENTRA API")
 
@@ -19,161 +37,239 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB = os.getenv("ZENTRA_DB", "zentra.db")
+
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+DB_PATH = os.getenv("ZENTRA_DB", "zentra.db")
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+
+PREMIUM_PRICE = 20
+
+MAX_NICKNAME_LENGTH = 20
+MIN_NICKNAME_LENGTH = 3
+
+SUPPORTED_GAMES = {
+    "ttt",
+    "crocodile",
+    "durak",
+    "poker",
+    "mafia",
+}
+
 rooms = {}
 connections = {}
 
 
-# =========================
+# ============================================================
 # DATABASE
-# =========================
+# ============================================================
 
 def db():
-    con = sqlite3.connect(DB)
-    con.row_factory = sqlite3.Row
-    return con
+    connection = sqlite3.connect(DB_PATH, timeout=30)
+    connection.row_factory = sqlite3.Row
+    return connection
 
 
 def init_db():
-    with db() as con:
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                uid TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                premium INTEGER DEFAULT 0
-            )
-        """)
+    connection = db()
+
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            uid TEXT PRIMARY KEY,
+            name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+            premium INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            uid TEXT NOT NULL,
+            telegram_charge_id TEXT NOT NULL UNIQUE,
+            amount INTEGER NOT NULL,
+            currency TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+    connection.commit()
+    connection.close()
 
 
 init_db()
 
-with db() as con:
-    columns = [row["name"] for row in con.execute("PRAGMA table_info(users)").fetchall()]
-    if "premium" not in columns:
-        con.execute("ALTER TABLE users ADD COLUMN premium INTEGER DEFAULT 0")
 
-
-# =========================
+# ============================================================
 # MODELS
-# =========================
+# ============================================================
 
 class Profile(BaseModel):
-    uid: str
-    name: str
+    uid: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=MIN_NICKNAME_LENGTH,
+                      max_length=MAX_NICKNAME_LENGTH)
 
 
 class RoomCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=MIN_NICKNAME_LENGTH,
+                      max_length=MAX_NICKNAME_LENGTH)
     game: str = "ttt"
     open: bool = False
 
 
 class JoinRoom(BaseModel):
-    code: str
-    name: str
+    code: str = Field(min_length=4, max_length=12)
+    name: str = Field(min_length=MIN_NICKNAME_LENGTH,
+                      max_length=MAX_NICKNAME_LENGTH)
 
 
-# =========================
-# BASIC
-# =========================
+# ============================================================
+# COMMON HELPERS
+# ============================================================
 
-@app.get("/")
-def home():
-    return {"name": "ZENTRA", "status": "online"}
-
-
-@app.get("/health")
-def health():
-    return {
-        "ok": True,
-        "rooms": len(rooms)
-    }
+def now_iso():
+    return datetime.now(timezone.utc).isoformat()
 
 
-# =========================
-# PROFILES
-# =========================
+def clean_name(name: str) -> str:
+    if not isinstance(name, str):
+        raise HTTPException(400, "Invalid nickname")
 
-@app.post("/api/profile")
-def profile(data: Profile):
-    uid = data.uid.strip()
-    name = data.name.strip()[:24]
+    name = " ".join(name.strip().split())
 
-    if not uid or not name:
-        raise HTTPException(400, "Вкажи нікнейм")
-
-    with db() as con:
-        existing = con.execute(
-            """
-            SELECT uid FROM users
-            WHERE lower(name)=lower(?) AND uid!=?
-            """,
-            (name, uid)
-        ).fetchone()
-
-        if existing:
-            raise HTTPException(
-                409,
-                "Цей нікнейм уже зайнятий! Обери інший."
-            )
-
-        con.execute(
-            """
-            INSERT INTO users(uid, name)
-            VALUES(?, ?)
-            ON CONFLICT(uid)
-            DO UPDATE SET name=excluded.name
-            """,
-            (uid, name)
+    if not MIN_NICKNAME_LENGTH <= len(name) <= MAX_NICKNAME_LENGTH:
+        raise HTTPException(
+            400,
+            f"Nickname must contain {MIN_NICKNAME_LENGTH}-{MAX_NICKNAME_LENGTH} characters"
         )
 
-        user = con.execute(
-            "SELECT * FROM users WHERE uid=?",
-            (uid,)
-        ).fetchone()
+    if any(ord(char) < 32 for char in name):
+        raise HTTPException(400, "Invalid nickname")
 
-    return {
-        "uid": user["uid"],
-        "name": user["name"],
-        "premium": bool(user["premium"])
+    return name
+
+
+def get_user(uid: str):
+    connection = db()
+
+    user = connection.execute(
+        "SELECT uid, name, premium FROM users WHERE uid = ?",
+        (uid,)
+    ).fetchone()
+
+    connection.close()
+
+    return dict(user) if user else None
+
+
+def is_premium(uid: str) -> bool:
+    user = get_user(uid)
+    return bool(user and user["premium"])
+
+
+def new_code():
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+    while True:
+        code = "".join(random.choices(alphabet, k=6))
+
+        if code not in rooms:
+            return code
+
+
+def get_room(code: str):
+    room = rooms.get(code.upper())
+
+    if not room:
+        raise HTTPException(404, "Room not found")
+
+    return room
+
+
+def public_room(room):
+    state = room.get("state", {})
+
+    result = {
+        "code": room["code"],
+        "game": room["game"],
+        "host": room["host"],
+        "players": list(room["players"]),
+        "open": room["open"],
+        "started": room["started"],
+        "max_players": room["max_players"],
     }
 
+    if room["game"] == "ttt":
+        result["state"] = state
 
-@app.get("/api/profile/{uid}")
-def get_profile(uid: str):
-    with db() as con:
-        user = con.execute(
-            "SELECT * FROM users WHERE uid=?",
-            (uid,)
-        ).fetchone()
+    elif room["game"] == "crocodile":
+        result["state"] = state
 
-    if not user:
-        raise HTTPException(404, "Профіль не знайдено")
+    elif room["game"] == "mafia":
+        result["state"] = {
+            "phase": state.get("phase"),
+            "round": state.get("round"),
+            "alive": state.get("alive", []),
+            "winner": state.get("winner"),
+            "last_result": state.get("last_result"),
+            "eliminated": state.get("eliminated"),
+        }
 
-    return {
-        "uid": user["uid"],
-        "name": user["name"],
-        "premium": bool(user["premium"])
-    }
+    elif room["game"] == "durak":
+        result["state"] = {
+            "phase": state.get("phase"),
+            "trump": state.get("trump"),
+            "trump_card": state.get("trump_card"),
+            "attacker": state.get("attacker"),
+            "defender": state.get("defender"),
+            "table": state.get("table", []),
+            "winner": state.get("winner"),
+            "message": state.get("message"),
+            "hand_counts": {
+                name: len(cards)
+                for name, cards in state.get("hands", {}).items()
+            },
+            "deck_count": len(state.get("deck", [])),
+        }
+
+    elif room["game"] == "poker":
+        result["state"] = {
+            "community": state.get("community", []),
+            "chips": state.get("chips", {}),
+            "bets": state.get("bets", {}),
+            "pot": state.get("pot", 0),
+            "turn": state.get("turn"),
+            "phase": state.get("phase"),
+            "winner": state.get("winner"),
+            "message": state.get("message"),
+            "hand_counts": {
+                name: len(cards)
+                for name, cards in state.get("hands", {}).items()
+            },
+        }
+
+    return result
 
 
-# =========================
-# ZENTRA PREMIUM — TELEGRAM STARS
-# =========================
+# ============================================================
+# TELEGRAM API
+# ============================================================
 
-PREMIUM_PRICE = 20
-
-
-def telegram_api(method, payload):
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-
-    if not token:
+def telegram_api(method: str, payload: dict):
+    if not TELEGRAM_BOT_TOKEN:
         raise HTTPException(
             503,
-            "На Render не налаштовано TELEGRAM_BOT_TOKEN"
+            "Telegram bot token is not configured"
         )
 
-    url = f"https://api.telegram.org/bot{token}/{method}"
+    url = (
+        f"https://api.telegram.org/"
+        f"bot{TELEGRAM_BOT_TOKEN}/{method}"
+    )
 
     request = urllib.request.Request(
         url,
@@ -186,255 +282,351 @@ def telegram_api(method, payload):
         with urllib.request.urlopen(request, timeout=20) as response:
             result = json.loads(response.read().decode("utf-8"))
 
+    except urllib.error.HTTPError as error:
+        details = error.read().decode("utf-8", errors="replace")
+        raise HTTPException(502, f"Telegram API error: {details}")
+
     except Exception as error:
-        raise HTTPException(
-            502,
-            f"Помилка Telegram API: {error}"
-        )
+        raise HTTPException(502, f"Telegram connection error: {error}")
 
     if not result.get("ok"):
-        raise HTTPException(
-            502,
-            result.get("description", "Telegram API error")
-        )
+        raise HTTPException(502, "Telegram API request failed")
 
     return result.get("result")
 
 
-@app.post("/api/premium/invoice")
-def premium_invoice(data: dict):
-    uid = str(data.get("uid", "")).strip()
+# ============================================================
+# ROOT / HEALTH
+# ============================================================
 
-    if not uid:
-        raise HTTPException(400, "Не передано uid")
-
-    with db() as con:
-        user = con.execute(
-            "SELECT uid, premium FROM users WHERE uid=?",
-            (uid,)
-        ).fetchone()
-
-    if not user:
-        raise HTTPException(404, "Профіль не знайдено")
-
-    if user["premium"]:
-        return {
-            "premium": True,
-            "already_owned": True
-        }
-
-    link = telegram_api("createInvoiceLink", {
-        "title": "ZENTRA PREMIUM",
-        "description": "Постійний доступ до преміум-ігор ZENTRA",
-        "payload": f"zentra_premium:{uid}",
-        "currency": "XTR",
-        "prices": [{
-            "label": "ZENTRA PREMIUM lifetime",
-            "amount": PREMIUM_PRICE
-        }],
-    })
-
+@app.get("/")
+async def root():
     return {
-        "premium": False,
-        "invoice_link": link,
-        "price": PREMIUM_PRICE,
-        "currency": "XTR"
+        "name": "ZENTRA API",
+        "status": "online",
+        "version": "2.0",
     }
 
 
-@app.post("/telegram/webhook")
-async def telegram_webhook(request: Request):
-    expected = os.getenv("TELEGRAM_WEBHOOK_SECRET")
-    supplied = request.headers.get(
-        "X-Telegram-Bot-Api-Secret-Token",
-        ""
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "rooms": len(rooms),
+        "connections": sum(
+            len(items) for items in connections.values()
+        ),
+    }
+
+
+# ============================================================
+# PROFILES
+# ============================================================
+
+@app.post("/api/profile")
+async def create_profile(profile: Profile):
+    uid = profile.uid.strip()
+    name = clean_name(profile.name)
+
+    if not uid:
+        raise HTTPException(400, "Invalid user ID")
+
+    connection = db()
+
+    existing_uid = connection.execute(
+        "SELECT uid, name, premium FROM users WHERE uid = ?",
+        (uid,)
+    ).fetchone()
+
+    existing_name = connection.execute(
+        "SELECT uid FROM users WHERE name = ? COLLATE NOCASE",
+        (name,)
+    ).fetchone()
+
+    if existing_uid:
+        connection.close()
+        raise HTTPException(
+            409,
+            "Profile already exists"
+        )
+
+    if existing_name:
+        connection.close()
+        raise HTTPException(
+            409,
+            "This nickname is already taken"
+        )
+
+    try:
+        connection.execute(
+            """
+            INSERT INTO users (uid, name, premium, created_at)
+            VALUES (?, ?, 0, ?)
+            """,
+            (uid, name, now_iso())
+        )
+
+        connection.commit()
+
+    except sqlite3.IntegrityError:
+        connection.close()
+        raise HTTPException(
+            409,
+            "This nickname is already taken"
+        )
+
+    connection.close()
+
+    return {
+        "success": True,
+        "uid": uid,
+        "name": name,
+        "premium": False,
+    }
+
+
+@app.get("/api/profile/{uid}")
+async def profile(uid: str):
+    user = get_user(uid)
+
+    if not user:
+        raise HTTPException(404, "Profile not found")
+
+    return {
+        "uid": user["uid"],
+        "name": user["name"],
+        "premium": bool(user["premium"]),
+    }
+
+
+# ============================================================
+# PREMIUM — TELEGRAM STARS
+# ============================================================
+
+@app.post("/api/premium/invoice")
+async def create_premium_invoice(data: dict):
+    uid = str(data.get("uid", "")).strip()
+
+    if not uid:
+        raise HTTPException(400, "User ID is required")
+
+    user = get_user(uid)
+
+    if not user:
+        raise HTTPException(404, "Profile not found")
+
+    if user["premium"]:
+        return {
+            "success": True,
+            "already_premium": True,
+        }
+
+    payload = f"zentra_premium:{uid}"
+
+    invoice_link = telegram_api(
+        "createInvoiceLink",
+        {
+            "title": "ZENTRA PREMIUM",
+            "description": (
+                "Lifetime ZENTRA PREMIUM access. "
+                "Unlock premium games and future premium features."
+            ),
+            "payload": payload,
+            "provider_token": "",
+            "currency": "XTR",
+            "prices": [
+                {
+                    "label": "ZENTRA PREMIUM lifetime",
+                    "amount": PREMIUM_PRICE,
+                }
+            ],
+        }
     )
 
-    if not expected or supplied != expected:
-        raise HTTPException(403, "Invalid webhook secret")
+    return {
+        "success": True,
+        "invoice_url": invoice_link,
+        "price": PREMIUM_PRICE,
+        "currency": "XTR",
+    }
+
+
+# ============================================================
+# TELEGRAM PAYMENT WEBHOOK
+# ============================================================
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: Optional[str] = Header(
+        default=None
+    ),
+):
+    if TELEGRAM_WEBHOOK_SECRET:
+        if x_telegram_bot_api_secret_token != TELEGRAM_WEBHOOK_SECRET:
+            raise HTTPException(403, "Invalid webhook secret")
 
     update = await request.json()
+
+    # --------------------------------------------------------
+    # PRE-CHECKOUT
+    # --------------------------------------------------------
 
     checkout = update.get("pre_checkout_query")
 
     if checkout:
-        payload = str(checkout.get("invoice_payload", ""))
-        valid = False
+        payload = checkout.get("invoice_payload", "")
+        currency = checkout.get("currency")
+        amount = checkout.get("total_amount")
 
-        if payload.startswith("zentra_premium:"):
-            uid = payload.split(":", 1)[1]
+        valid = (
+            payload.startswith("zentra_premium:")
+            and currency == "XTR"
+            and amount == PREMIUM_PRICE
+        )
 
-            with db() as con:
-                valid = con.execute(
-                    "SELECT 1 FROM users WHERE uid=?",
-                    (uid,)
-                ).fetchone() is not None
+        uid = payload.replace("zentra_premium:", "", 1)
 
-        telegram_api("answerPreCheckoutQuery", {
-            "pre_checkout_query_id": checkout["id"],
-            "ok": bool(valid),
-            **(
-                {}
-                if valid
-                else {"error_message": "Invalid ZENTRA purchase"}
+        if valid and get_user(uid):
+            telegram_api(
+                "answerPreCheckoutQuery",
+                {
+                    "pre_checkout_query_id": checkout["id"],
+                    "ok": True,
+                }
             )
-        })
+        else:
+            telegram_api(
+                "answerPreCheckoutQuery",
+                {
+                    "pre_checkout_query_id": checkout["id"],
+                    "ok": False,
+                    "error_message": "Invalid ZENTRA PREMIUM payment",
+                }
+            )
 
         return {"ok": True}
 
-    message = update.get("message") or {}
+    # --------------------------------------------------------
+    # SUCCESSFUL PAYMENT
+    # --------------------------------------------------------
+
+    message = update.get("message", {})
     payment = message.get("successful_payment")
 
     if payment:
-        payload = str(payment.get("invoice_payload", ""))
-        total = payment.get("total_amount")
+        payload = payment.get("invoice_payload", "")
         currency = payment.get("currency")
+        amount = payment.get("total_amount")
+        charge_id = payment.get("telegram_payment_charge_id")
+
+        prefix = "zentra_premium:"
+
+        if not payload.startswith(prefix):
+            return {"ok": True}
+
+        uid = payload[len(prefix):]
 
         if (
-            payload.startswith("zentra_premium:")
-            and total == PREMIUM_PRICE
-            and currency == "XTR"
+            currency != "XTR"
+            or amount != PREMIUM_PRICE
+            or not charge_id
         ):
-            uid = payload.split(":", 1)[1]
-            charge = payment.get("telegram_payment_charge_id")
+            return {"ok": True}
 
-            if charge:
-                with db() as con:
-                    con.execute("""
-                        CREATE TABLE IF NOT EXISTS payments (
-                            charge_id TEXT PRIMARY KEY,
-                            uid TEXT NOT NULL
-                        )
-                    """)
+        connection = db()
 
-                    try:
-                        con.execute(
-                            "INSERT INTO payments(charge_id,uid) VALUES(?,?)",
-                            (charge, uid)
-                        )
-                    except sqlite3.IntegrityError:
-                        return {"ok": True}
+        user = connection.execute(
+            "SELECT uid FROM users WHERE uid = ?",
+            (uid,)
+        ).fetchone()
 
-                    con.execute(
-                        "UPDATE users SET premium=1 WHERE uid=?",
-                        (uid,)
+        if user:
+            try:
+                connection.execute(
+                    """
+                    INSERT INTO payments (
+                        uid,
+                        telegram_charge_id,
+                        amount,
+                        currency,
+                        created_at
                     )
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        uid,
+                        charge_id,
+                        amount,
+                        currency,
+                        now_iso(),
+                    )
+                )
+
+                connection.execute(
+                    "UPDATE users SET premium = 1 WHERE uid = ?",
+                    (uid,)
+                )
+
+                connection.commit()
+
+            except sqlite3.IntegrityError:
+                # Payment already processed.
+                pass
+
+        connection.close()
 
     return {"ok": True}
 
 
-# =========================
+# ============================================================
 # ROOMS
-# =========================
+# ============================================================
 
-def new_code():
-    code = str(random.randint(100000, 999999))
-
-    while code in rooms:
-        code = str(random.randint(100000, 999999))
-
-    return code
-
-
-def public_room(room):
-    """Публічна інформація без секретних ролей."""
-    result = {
-        "code": room["code"],
-        "game": room["game"],
-        "host": room["host"],
-        "players": room["players"],
-        "open": room["open"],
-        "started": room["started"]
+def room_max_players(game: str) -> int:
+    limits = {
+        "ttt": 2,
+        "crocodile": 4,
+        "durak": 6,
+        "poker": 6,
+        "mafia": 10,
     }
 
-    if room["game"] == "mafia" and room["started"]:
-        state = room["state"]
-
-        result["state"] = {
-            "phase": state["phase"],
-            "round": state["round"],
-            "alive": state["alive"],
-            "winner": state["winner"],
-            "last_result": state["last_result"],
-            "eliminated": state["eliminated"],
-            "votes_count": len(state["votes"]),
-            "players_count": len(state["alive"])
-        }
-
-    elif room["game"] == "durak" and room["started"]:
-        state = room["state"]
-
-        result["state"] = {
-            k: v
-            for k, v in state.items()
-            if k not in ("hands", "deck")
-        }
-
-        result["state"]["deck_count"] = len(state["deck"])
-        result["hand_counts"] = {
-            p: len(h)
-            for p, h in state["hands"].items()
-        }
-
-    elif room["game"] == "poker" and room["started"]:
-        state = room["state"]
-
-        result["state"] = {
-            k: v
-            for k, v in state.items()
-            if k not in ("hands", "deck")
-        }
-
-        result["hand_counts"] = {
-            p: (
-                len(h)
-                if p in state["folded"]
-                else 2
-            )
-            for p, h in state["hands"].items()
-        }
-
-    else:
-        result["state"] = room["state"]
-
-    return result
+    return limits[game]
 
 
 @app.post("/api/rooms")
-def create_room(data: RoomCreate):
-    game = data.game.lower()
+async def create_room(data: RoomCreate):
+    name = clean_name(data.name)
+    game = data.game.lower().strip()
 
-    if game not in (
-        "ttt",
-        "durak",
-        "mafia",
-        "poker",
-        "crocodile"
-    ):
-        raise HTTPException(400, "Невідомий тип гри")
-
-    name = data.name.strip()[:24]
-
-    if not name:
-        raise HTTPException(400, "Вкажи ім'я")
+    if game not in SUPPORTED_GAMES:
+        raise HTTPException(400, "Unknown game")
 
     code = new_code()
 
-    rooms[code] = {
+    room = {
         "code": code,
         "game": game,
         "host": name,
         "players": [name],
-        "open": data.open,
+        "open": bool(data.open),
         "started": False,
-        "state": {}
+        "max_players": room_max_players(game),
+        "state": {},
+        "created_at": now_iso(),
     }
 
-    return public_room(rooms[code])
+    rooms[code] = room
+
+    return {
+        "success": True,
+        "room": public_room(room),
+    }
 
 
 @app.get("/api/rooms")
-def get_rooms():
+async def list_rooms():
     return [
         public_room(room)
         for room in rooms.values()
@@ -442,7 +634,7 @@ def get_rooms():
 
 
 @app.get("/api/lobbies")
-def lobbies():
+async def list_lobbies():
     return [
         public_room(room)
         for room in rooms.values()
@@ -451,451 +643,489 @@ def lobbies():
 
 
 @app.post("/api/rooms/join")
-def join_room(data: JoinRoom):
-    code = data.code.strip()
+async def join_room(data: JoinRoom):
+    code = data.code.upper().strip()
+    name = clean_name(data.name)
+
     room = rooms.get(code)
 
     if not room:
-        raise HTTPException(404, "Кімнату не знайдено")
+        raise HTTPException(404, "Room not found")
 
     if room["started"]:
-        raise HTTPException(400, "Гра вже почалася")
+        raise HTTPException(400, "Game already started")
 
-    name = data.name.strip()[:24]
-
-    if not name:
-        raise HTTPException(400, "Вкажи ім'я")
-
-    if name.casefold() not in [
-        p.casefold()
-        for p in room["players"]
-    ]:
-        limits = {
-            "ttt": 2,
-            "mafia": 10,
-            "crocodile": 4,
-            "durak": 6,
-            "poker": 6
+    if name in room["players"]:
+        return {
+            "success": True,
+            "room": public_room(room),
         }
 
-        limit = limits.get(room["game"], 10)
+    if len(room["players"]) >= room["max_players"]:
+        raise HTTPException(400, "Room is full")
 
-        if len(room["players"]) >= limit:
-            raise HTTPException(
-                400,
-                f"У цій грі максимум {limit} гравців"
-            )
+    if any(
+        player.casefold() == name.casefold()
+        for player in room["players"]
+    ):
+        raise HTTPException(409, "Nickname already in room")
 
-        room["players"].append(name)
+    room["players"].append(name)
 
-    return public_room(room)
+    return {
+        "success": True,
+        "room": public_room(room),
+    }
 
 
 @app.get("/api/rooms/{code}")
-def room_info(code: str):
-    room = rooms.get(code)
-
-    if not room:
-        raise HTTPException(404, "Кімнату не знайдено")
-
+async def get_room_info(code: str):
+    room = get_room(code)
     return public_room(room)
 
-
-# =========================
+# ============================================================
 # TIC TAC TOE
-# =========================
+# ============================================================
 
 def start_ttt(room):
-    room["started"] = True
+    if len(room["players"]) != 2:
+        raise HTTPException(400, "Tic-tac-toe requires exactly 2 players")
 
+    room["started"] = True
     room["state"] = {
-        "turn": 0,
         "board": [""] * 9,
-        "winner": None
-    }
-
-
-# =========================
-# MAFIA
-# =========================
-
-def mafia_roles(players):
-    shuffled = players[:]
-    random.shuffle(shuffled)
-
-    count = len(shuffled)
-    mafia_count = max(1, count // 4)
-
-    roles = {}
-
-    for name in shuffled[:mafia_count]:
-        roles[name] = "mafia"
-
-    remaining = shuffled[mafia_count:]
-
-    if remaining:
-        roles[remaining.pop()] = "doctor"
-
-    if count >= 5 and remaining:
-        roles[remaining.pop()] = "detective"
-
-    for name in remaining:
-        roles[name] = "citizen"
-
-    return roles
-
-
-def start_mafia(room):
-    players = room["players"]
-
-    if not 4 <= len(players) <= 10:
-        raise HTTPException(
-            400,
-            "Для Мафії потрібно від 4 до 10 гравців"
-        )
-
-    roles = mafia_roles(players)
-
-    room["started"] = True
-
-    room["state"] = {
-        "phase": "night",
-        "round": 1,
-        "alive": players[:],
-        "roles": roles,
-        "night_actions": {},
-        "votes": {},
+        "symbols": {
+            room["players"][0]: "X",
+            room["players"][1]: "O",
+        },
+        "turn": room["players"][0],
         "winner": None,
-        "last_result": "Настала ніч. Оберіть свої дії.",
-        "private_checks": {},
-        "eliminated": None
+        "draw": False,
+        "finished": False,
     }
 
 
-def mafia_finish(room):
+def ttt_move(room, name, index):
     state = room["state"]
-    alive = state["alive"]
-    roles = state["roles"]
 
-    mafia_alive = [
-        name
-        for name in alive
-        if roles[name] == "mafia"
+    if not room["started"] or state.get("finished"):
+        raise HTTPException(400, "Game is not active")
+
+    if name != state["turn"]:
+        raise HTTPException(400, "Not your turn")
+
+    if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < 9:
+        raise HTTPException(400, "Invalid cell")
+
+    if state["board"][index]:
+        raise HTTPException(400, "Cell already occupied")
+
+    symbol = state["symbols"][name]
+    state["board"][index] = symbol
+
+    wins = [
+        (0, 1, 2), (3, 4, 5), (6, 7, 8),
+        (0, 3, 6), (1, 4, 7), (2, 5, 8),
+        (0, 4, 8), (2, 4, 6),
     ]
 
-    town_alive = [
-        name
-        for name in alive
-        if roles[name] != "mafia"
-    ]
-
-    if not mafia_alive:
-        state["winner"] = "citizens"
-        state["phase"] = "finished"
-        state["last_result"] = "Мирні жителі перемогли!"
-
-    elif len(mafia_alive) >= len(town_alive):
-        state["winner"] = "mafia"
-        state["phase"] = "finished"
-        state["last_result"] = "Мафія перемогла!"
-
-    if state["winner"]:
-        return True
-
-    return False
-
-
-def resolve_night(room):
-    state = room["state"]
-    roles = state["roles"]
-    alive = state["alive"]
-    actions = state["night_actions"]
-
-    mafia_votes = [
-        action["target"]
-        for name, action in actions.items()
+    for a, b, c in wins:
         if (
-            roles.get(name) == "mafia"
-            and action.get("type") == "kill"
-            and action.get("target") in alive
-        )
-    ]
+            state["board"][a]
+            == state["board"][b]
+            == state["board"][c]
+            == symbol
+        ):
+            state["winner"] = name
+            state["finished"] = True
+            return
 
-    victim = None
+    if all(state["board"]):
+        state["draw"] = True
+        state["finished"] = True
+        return
 
-    if mafia_votes:
-        victim = max(
-            set(mafia_votes),
-            key=mafia_votes.count
-        )
-
-    doctor_target = next(
-        (
-            action["target"]
-            for name, action in actions.items()
-            if (
-                roles.get(name) == "doctor"
-                and action.get("type") == "save"
-            )
-        ),
-        None
+    other = next(
+        player for player in room["players"]
+        if player != name
     )
 
-    if victim and victim == doctor_target:
-        state["last_result"] = (
-            "Лікар врятував гравця. "
-            "Ніхто не вибув цієї ночі."
-        )
-
-        eliminated = None
-
-    elif victim:
-        alive.remove(victim)
-        eliminated = victim
-
-        state["last_result"] = (
-            f"Вночі вибув гравець: {victim}."
-        )
-
-    else:
-        eliminated = None
-
-        state["last_result"] = (
-            "Цієї ночі ніхто не вибув."
-        )
-
-    state["eliminated"] = eliminated
-
-    for name, action in actions.items():
-        if (
-            roles.get(name) == "detective"
-            and action.get("type") == "check"
-        ):
-            target = action.get("target")
-
-            if target in roles:
-                state["private_checks"][name] = {
-                    "target": target,
-                    "is_mafia": roles[target] == "mafia"
-                }
-
-    state["night_actions"] = {}
-
-    if mafia_finish(room):
-        return
-
-    state["phase"] = "day"
-    state["votes"] = {}
+    state["turn"] = other
 
 
-def resolve_day(room):
-    state = room["state"]
-    votes = state["votes"]
-    alive = state["alive"]
-
-    if not votes:
-        state["last_result"] = (
-            "Голосування завершено. Ніхто не вибув."
-        )
-
-        eliminated = None
-
-    else:
-        counts = {}
-
-        for target in votes.values():
-            if target in alive:
-                counts[target] = counts.get(target, 0) + 1
-
-        if not counts:
-            eliminated = None
-
-        else:
-            highest = max(counts.values())
-
-            candidates = [
-                name
-                for name, count in counts.items()
-                if count == highest
-            ]
-
-            eliminated = (
-                candidates[0]
-                if len(candidates) == 1
-                else None
-            )
-
-        if eliminated:
-            alive.remove(eliminated)
-
-            state["last_result"] = (
-                f"За результатами голосування "
-                f"вибув: {eliminated}."
-            )
-
-        else:
-            state["last_result"] = (
-                "Нічия! Ніхто не вибув."
-            )
-
-    state["eliminated"] = eliminated
-    state["votes"] = {}
-
-    if mafia_finish(room):
-        return
-
-    state["round"] += 1
-    state["phase"] = "night"
-    state["night_actions"] = {}
-
-    state["last_result"] += " Настала нова ніч."
-
-
-def mafia_action(room, name, data):
-    state = room["state"]
-    roles = state["roles"]
-    alive = state["alive"]
-
-    if name not in alive:
-        return
-
-    if state["phase"] == "night":
-        role = roles[name]
-        action_type = data.get("type")
-        target = data.get("target")
-
-        if target not in alive or target == name:
-            return
-
-        if role == "mafia":
-            if action_type != "kill":
-                return
-
-            if roles.get(target) == "mafia":
-                return
-
-        elif role == "doctor":
-            if action_type != "save":
-                return
-
-        elif role == "detective":
-            if action_type != "check":
-                return
-
-        else:
-            return
-
-        state["night_actions"][name] = {
-            "type": action_type,
-            "target": target
-        }
-
-        required = [
-            player
-            for player in alive
-            if roles[player] in (
-                "mafia",
-                "doctor",
-                "detective"
-            )
-        ]
-
-        if all(
-            player in state["night_actions"]
-            for player in required
-        ):
-            resolve_night(room)
-
-    elif state["phase"] == "day":
-        target = data.get("target")
-
-        if target not in alive or target == name:
-            return
-
-        state["votes"][name] = target
-
-        if all(
-            player in state["votes"]
-            for player in alive
-        ):
-            resolve_day(room)
-
-
-# =========================
+# ============================================================
 # CROCODILE DENTIST
-# =========================
+# ============================================================
 
 def start_crocodile(room):
-    if not 2 <= len(room["players"]) <= 4:
+    count = len(room["players"])
+
+    if not 2 <= count <= 4:
         raise HTTPException(
             400,
-            "Для Крокодила потрібно від 2 до 4 гравців"
+            "Crocodile Dentist requires 2-4 players"
         )
 
-    room["started"] = True
+    teeth = list(range(12))
+    danger = random.choice(teeth)
 
+    room["started"] = True
     room["state"] = {
-        "turn": 0,
-        "danger": random.randrange(12),
+        "turn": room["players"][0],
+        "danger": danger,
         "pressed": [],
-        "alive": room["players"][:],
+        "alive": list(room["players"]),
         "loser": None,
         "winner": None,
-        "finished": False
+        "finished": False,
+        "message": "Game started",
     }
 
 
 def crocodile_press(room, name, tooth):
     state = room["state"]
-    alive = state["alive"]
 
-    if (
-        state["finished"]
-        or not alive
-        or alive[state["turn"] % len(alive)] != name
-    ):
-        return
+    if not room["started"] or state["finished"]:
+        raise HTTPException(400, "Game is not active")
 
-    if (
-        not isinstance(tooth, int)
-        or not 0 <= tooth < 12
-        or tooth in state["pressed"]
-    ):
-        return
+    if name != state["turn"]:
+        raise HTTPException(400, "Not your turn")
+
+    if not isinstance(tooth, int) or isinstance(tooth, bool) or not 0 <= tooth < 12:
+        raise HTTPException(400, "Invalid tooth")
+
+    if tooth in state["pressed"]:
+        raise HTTPException(400, "This tooth was already pressed")
 
     state["pressed"].append(tooth)
 
     if tooth == state["danger"]:
         state["loser"] = name
-        alive.remove(name)
+        state["alive"].remove(name)
+        state["message"] = f"{name} lost!"
 
-        if len(alive) == 1:
-            state["winner"] = alive[0]
+        if len(state["alive"]) == 1:
+            state["winner"] = state["alive"][0]
             state["finished"] = True
+            return
+
+        # A new round begins with a new dangerous tooth.
+        state["danger"] = random.choice(
+            [i for i in range(12) if i not in state["pressed"]]
+            or list(range(12))
+        )
+        state["pressed"] = []
+
+        state["turn"] = state["alive"][
+            0
+        ]
+
+        return
+
+    alive = state["alive"]
+    current_index = alive.index(name)
+    state["turn"] = alive[(current_index + 1) % len(alive)]
+    state["message"] = f"{name} pressed tooth {tooth + 1}"
+
+
+# ============================================================
+# MAFIA
+# ============================================================
+
+def mafia_roles(count):
+    roles = ["mafia"] * max(1, count // 4)
+
+    if count >= 5:
+        roles.append("doctor")
+
+    if count >= 5:
+        roles.append("detective")
+
+    while len(roles) < count:
+        roles.append("citizen")
+
+    random.shuffle(roles)
+    return roles
+
+
+def start_mafia(room):
+    count = len(room["players"])
+
+    if not 4 <= count <= 10:
+        raise HTTPException(
+            400,
+            "Mafia requires 4-10 players"
+        )
+
+    assigned = mafia_roles(count)
+
+    roles = {
+        player: assigned[index]
+        for index, player in enumerate(room["players"])
+    }
+
+    room["started"] = True
+    room["state"] = {
+        "phase": "night",
+        "round": 1,
+        "alive": list(room["players"]),
+        "roles": roles,
+        "night_actions": {},
+        "votes": {},
+        "winner": None,
+        "last_result": "Night has begun",
+        "private_checks": {},
+        "eliminated": None,
+        "action_done": [],
+    }
+
+
+def mafia_finish(room):
+    state = room["state"]
+
+    alive = state["alive"]
+    roles = state["roles"]
+
+    mafia_count = sum(
+        1 for player in alive
+        if roles[player] == "mafia"
+    )
+
+    other_count = len(alive) - mafia_count
+
+    if mafia_count == 0:
+        state["winner"] = "citizens"
+        state["phase"] = "finished"
+        state["last_result"] = "Citizens win!"
+
+    elif mafia_count >= other_count:
+        state["winner"] = "mafia"
+        state["phase"] = "finished"
+        state["last_result"] = "Mafia wins!"
+
+
+def resolve_night(room):
+    state = room["state"]
+
+    alive = state["alive"]
+    roles = state["roles"]
+    actions = state["night_actions"]
+
+    mafia_votes = [
+        target
+        for player, target in actions.items()
+        if (
+            player in alive
+            and roles[player] == "mafia"
+            and target in alive
+            and roles[target] != "mafia"
+        )
+    ]
+
+    doctor_target = next(
+        (
+            target
+            for player, target in actions.items()
+            if player in alive
+            and roles[player] == "doctor"
+            and target in alive
+        ),
+        None,
+    )
+
+    detective_action = next(
+        (
+            (player, target)
+            for player, target in actions.items()
+            if player in alive
+            and roles[player] == "detective"
+            and target in alive
+        ),
+        None,
+    )
+
+    if detective_action:
+        detective, target = detective_action
+        state["private_checks"][detective] = (
+            roles[target] == "mafia"
+        )
+
+    eliminated = None
+
+    if mafia_votes:
+        counts = {}
+
+        for target in mafia_votes:
+            counts[target] = counts.get(target, 0) + 1
+
+        maximum = max(counts.values())
+        candidates = [
+            target for target, amount in counts.items()
+            if amount == maximum
+        ]
+
+        if len(candidates) == 1:
+            victim = candidates[0]
+
+            if victim != doctor_target:
+                eliminated = victim
+
+    if eliminated:
+        state["alive"].remove(eliminated)
+        state["eliminated"] = eliminated
+        state["last_result"] = f"{eliminated} was eliminated"
+    else:
+        state["eliminated"] = None
+        state["last_result"] = "Nobody was eliminated"
+
+    state["night_actions"] = {}
+    state["votes"] = {}
+    state["action_done"] = []
+
+    mafia_finish(room)
+
+    if state["phase"] != "finished":
+        state["phase"] = "day"
+
+
+def resolve_day(room):
+    state = room["state"]
+
+    votes = state["votes"]
+    alive = state["alive"]
+
+    counts = {}
+
+    for voter, target in votes.items():
+        if voter in alive and target in alive:
+            counts[target] = counts.get(target, 0) + 1
+
+    eliminated = None
+
+    if counts:
+        maximum = max(counts.values())
+
+        candidates = [
+            target for target, amount in counts.items()
+            if amount == maximum
+        ]
+
+        if len(candidates) == 1:
+            eliminated = candidates[0]
+
+    if eliminated:
+        state["alive"].remove(eliminated)
+        state["eliminated"] = eliminated
+        state["last_result"] = f"{eliminated} was voted out"
+    else:
+        state["eliminated"] = None
+        state["last_result"] = "No one was eliminated"
+
+    state["votes"] = {}
+
+    mafia_finish(room)
+
+    if state["phase"] != "finished":
+        state["round"] += 1
+        state["phase"] = "night"
+        state["night_actions"] = {}
+        state["action_done"] = []
+
+
+def mafia_action(room, name, action):
+    state = room["state"]
+
+    if not room["started"] or state["phase"] == "finished":
+        raise HTTPException(400, "Game is finished")
+
+    if name not in state["alive"]:
+        raise HTTPException(400, "You are eliminated")
+
+    action_type = action.get("type")
+    target = action.get("target")
+
+    if target not in state["alive"]:
+        raise HTTPException(400, "Invalid target")
+
+    if target == name:
+        raise HTTPException(400, "You cannot target yourself")
+
+    role = state["roles"][name]
+
+    if state["phase"] == "night":
+        if name in state["action_done"]:
+            raise HTTPException(400, "You already acted this night")
+
+        if action_type != "night":
+            raise HTTPException(400, "Invalid night action")
+
+        if role == "mafia":
+            if state["roles"][target] == "mafia":
+                raise HTTPException(400, "You cannot target another mafia member")
+
+        elif role == "doctor":
+            pass
+
+        elif role == "detective":
+            pass
+
         else:
-            state["turn"] %= len(alive)
+            raise HTTPException(400, "Citizens cannot act at night")
+
+        state["night_actions"][name] = target
+        state["action_done"].append(name)
+
+        active_roles = [
+            player for player in state["alive"]
+            if state["roles"][player] in ("mafia", "doctor", "detective")
+        ]
+
+        if all(
+            player in state["action_done"]
+            for player in active_roles
+        ):
+            resolve_night(room)
+
+    elif state["phase"] == "day":
+        if action_type != "vote":
+            raise HTTPException(400, "Invalid day action")
+
+        if name in state["votes"]:
+            raise HTTPException(400, "You already voted")
+
+        state["votes"][name] = target
+
+        if all(
+            player in state["votes"]
+            for player in state["alive"]
+        ):
+            resolve_day(room)
 
     else:
-        state["turn"] = (
-            state["turn"] + 1
-        ) % len(alive)
-                # =========================
-# DURAK (36-card, 2-6 players)
-# =========================
+        raise HTTPException(400, "Invalid game phase")
+
+
+# ============================================================
+# DURAK
+# ============================================================
 
 SUITS = ["♠", "♥", "♦", "♣"]
-RANKS = ["6", "7", "8", "9", "10", "J", "Q", "K", "A"]
+RANKS = [
+    "6", "7", "8", "9", "10",
+    "J", "Q", "K", "A",
+]
 
 
 def make_deck():
     deck = [
         {
-            "s": suit,
-            "r": rank,
-            "v": i + 6
+            "rank": rank,
+            "suit": suit,
+            "value": index + 6,
+            "id": f"{rank}{suit}",
         }
         for suit in SUITS
-        for i, rank in enumerate(RANKS)
+        for index, rank in enumerate(RANKS)
     ]
 
     random.shuffle(deck)
@@ -903,636 +1133,848 @@ def make_deck():
 
 
 def start_durak(room):
-    n = len(room["players"])
+    count = len(room["players"])
 
-    if not 2 <= n <= 6:
+    if not 2 <= count <= 6:
         raise HTTPException(
             400,
-            "Для Дурня потрібно 2–6 гравців"
+            "Durak requires 2-6 players"
         )
 
     deck = make_deck()
-
     hands = {
-        p: [deck.pop() for _ in range(6)]
-        for p in room["players"]
+        player: []
+        for player in room["players"]
     }
 
-    trump = deck[-1]["s"] if deck else random.choice(SUITS)
+    for _ in range(6):
+        for player in room["players"]:
+            if deck:
+                hands[player].append(deck.pop())
+
+    trump_card = deck[-1] if deck else None
+
+    if trump_card:
+        trump = trump_card["suit"]
+    else:
+        trump = random.choice(SUITS)
 
     room["started"] = True
-
     room["state"] = {
         "hands": hands,
         "deck": deck,
         "trump": trump,
-        "trump_card": deck[-1] if deck else None,
+        "trump_card": trump_card,
         "attacker": room["players"][0],
         "defender": room["players"][1],
         "table": [],
         "phase": "attack",
         "winner": None,
-        "message": "Гра почалася. Атакуйте або відбивайтеся.",
-        "players_order": room["players"][:],
-        "loser": None
+        "message": "Durak started",
+        "players_order": list(room["players"]),
+        "loser": None,
+        "passed": [],
+        "max_attack": 6,
     }
 
 
-def card_beats(defense, attack, trump):
+def card_beats(attack, defense, trump):
+    if defense["suit"] == attack["suit"]:
+        return defense["value"] > attack["value"]
+
     return (
-        (
-            defense["s"] == attack["s"]
-            and defense["v"] > attack["v"]
-        )
-        or (
-            defense["s"] == trump
-            and attack["s"] != trump
-        )
+        defense["suit"] == trump
+        and attack["suit"] != trump
     )
 
 
-def durak_refill(st):
-    order = st["players_order"]
-    attacker = st["attacker"]
-    start = order.index(attacker)
+def durak_refill(state):
+    order = state["players_order"]
 
-    for k in range(len(order)):
-        who = order[(start + k) % len(order)]
+    if state["attacker"] in order:
+        start = order.index(state["attacker"])
+    else:
+        start = 0
 
+    refill_order = order[start:] + order[:start]
+
+    for player in refill_order:
         while (
-            len(st["hands"].get(who, [])) < 6
-            and st["deck"]
+            len(state["hands"][player]) < 6
+            and state["deck"]
         ):
-            st["hands"][who].append(
-                st["deck"].pop()
+            state["hands"][player].append(
+                state["deck"].pop()
             )
 
 
-def durak_next(st):
-    order = st["players_order"]
+def durak_next(room, defender_took=False):
+    state = room["state"]
 
-    alive = [
-        p
-        for p in order
-        if st["hands"].get(p)
-    ]
+    order = state["players_order"]
+    old_attacker = state["attacker"]
+    old_defender = state["defender"]
 
-    if len(alive) <= 1 and not st["deck"]:
-        st["loser"] = alive[0] if alive else None
-
-        st["winner"] = [
-            p
-            for p in order
-            if p != st["loser"]
-        ]
-
-        st["phase"] = "finished"
-
-        st["message"] = (
-            "Дурень: " + str(st["loser"])
-            if st["loser"]
-            else "Нічия"
+    if defender_took:
+        state["hands"][old_defender].extend(
+            card
+            for pair in state["table"]
+            for card in (
+                pair["attack"],
+                pair.get("defense")
+            )
+            if card is not None
         )
 
-        return
+        next_index = order.index(old_defender)
+        next_attacker = old_defender
 
-    current = st["attacker"]
-    idx = order.index(current)
+    else:
+        next_index = order.index(old_attacker)
+        next_attacker = old_attacker
 
-    candidates = [
-        order[(idx + i) % len(order)]
-        for i in range(1, len(order) + 1)
-        if (
-            order[(idx + i) % len(order)] in alive
-            and order[(idx + i) % len(order)] != st["defender"]
-        )
+    durak_refill(state)
+
+    remaining = [
+        player for player in order
+        if state["hands"][player] or state["deck"]
     ]
 
-    if not candidates:
-        st["phase"] = "finished"
-        st["winner"] = current
+    if len(remaining) <= 1 and not state["deck"]:
+        state["winner"] = remaining[0] if remaining else None
+        state["loser"] = old_defender if defender_took else None
+        state["phase"] = "finished"
+        state["message"] = "Game finished"
         return
 
-    st["attacker"] = st["defender"]
-    st["defender"] = candidates[0]
-    st["table"] = []
-    st["phase"] = "attack"
-    st["message"] = "Наступний раунд."
+    if next_attacker not in remaining:
+        next_attacker = remaining[0]
+
+    attacker_index = order.index(next_attacker)
+
+    possible_defenders = [
+        order[(attacker_index + offset) % len(order)]
+        for offset in range(1, len(order))
+        if order[(attacker_index + offset) % len(order)] in remaining
+    ]
+
+    if not possible_defenders:
+        state["winner"] = next_attacker
+        state["phase"] = "finished"
+        return
+
+    state["attacker"] = next_attacker
+    state["defender"] = possible_defenders[0]
+    state["table"] = []
+    state["passed"] = []
+    state["phase"] = "attack"
+    state["message"] = "New turn"
 
 
 def durak_action(room, name, data):
-    st = room["state"]
+    state = room["state"]
 
-    if (
-        st["phase"] == "finished"
-        or name not in st["hands"]
-    ):
-        return
+    if not room["started"] or state["phase"] == "finished":
+        raise HTTPException(400, "Game is finished")
 
-    hand = st["hands"][name]
-    action = data.get("type")
-    idx = data.get("card")
+    if name not in state["hands"]:
+        raise HTTPException(400, "Unknown player")
 
-    if (
-        action == "attack"
-        and name == st["attacker"]
-        and st["phase"] == "attack"
-    ):
-        if (
-            not isinstance(idx, int)
-            or not 0 <= idx < len(hand)
-        ):
-            return
+    action_type = data.get("type")
+    card_id = data.get("card")
 
-        card = hand.pop(idx)
+    hand = state["hands"][name]
 
-        if st["table"] and card["v"] not in (
-            [x["attack"]["v"] for x in st["table"]]
-            + [
-                x["defense"]["v"]
-                for x in st["table"]
-                if x.get("defense")
+    def find_card():
+        for card in hand:
+            if card["id"] == card_id:
+                return card
+        raise HTTPException(400, "Card not found in your hand")
+
+    if action_type == "attack":
+        if name != state["attacker"]:
+            raise HTTPException(400, "Only attacker can attack")
+
+        if state["phase"] != "attack":
+            raise HTTPException(400, "Cannot attack now")
+
+        card = find_card()
+
+        if len(state["table"]) >= state["max_attack"]:
+            raise HTTPException(400, "Attack limit reached")
+
+        if state["table"]:
+            table_values = [
+                pair["attack"]["value"]
+                for pair in state["table"]
+            ] + [
+                pair["defense"]["value"]
+                for pair in state["table"]
+                if pair.get("defense")
             ]
-        ):
-            hand.insert(idx, card)
-            return
 
-        if len(st["table"]) >= 6:
-            hand.insert(idx, card)
-            return
+            if card["value"] not in table_values:
+                raise HTTPException(
+                    400,
+                    "Card rank must match a card on the table"
+                )
 
-        st["table"].append({
+        hand.remove(card)
+
+        state["table"].append({
             "attack": card,
-            "defense": None
+            "defense": None,
         })
 
-        st["phase"] = "defend"
-        st["message"] = "Захисник має відбитися."
+        state["phase"] = "defend"
+        state["message"] = f"{name} attacks"
 
-    elif (
-        action == "defend"
-        and name == st["defender"]
-        and st["phase"] == "defend"
-    ):
-        pair = next(
-            (
-                x
-                for x in st["table"]
-                if x["defense"] is None
-            ),
-            None
-        )
+    elif action_type == "throw":
+        if name == state["defender"]:
+            raise HTTPException(400, "Defender cannot throw in")
 
-        if (
-            not pair
-            or not isinstance(idx, int)
-            or not 0 <= idx < len(hand)
-            or not card_beats(
-                hand[idx],
-                pair["attack"],
-                st["trump"]
-            )
-        ):
-            return
+        if state["phase"] != "defend":
+            raise HTTPException(400, "Cannot throw in now")
 
-        pair["defense"] = hand.pop(idx)
+        if name in state["passed"]:
+            raise HTTPException(400, "You already passed")
 
-        if all(x["defense"] for x in st["table"]):
-            st["phase"] = "throw"
-            st["message"] = (
-                "Усі карти відбиті. "
-                "Можна підкинути карту або завершити хід."
-            )
+        if len(state["table"]) >= state["max_attack"]:
+            raise HTTPException(400, "Attack limit reached")
 
-    elif (
-        action == "throw"
-        and name != st["defender"]
-        and st["phase"] in ("defend", "throw")
-    ):
-        if (
-            not isinstance(idx, int)
-            or not 0 <= idx < len(hand)
-            or len(st["table"]) >= 6
-        ):
-            return
+        card = find_card()
 
-        card = hand[idx]
+        table_values = [
+            pair["attack"]["value"]
+            for pair in state["table"]
+        ] + [
+            pair["defense"]["value"]
+            for pair in state["table"]
+            if pair.get("defense")
+        ]
 
-        ranks = (
-            [x["attack"]["v"] for x in st["table"]]
-            + [
-                x["defense"]["v"]
-                for x in st["table"]
-                if x.get("defense")
-            ]
-        )
+        if card["value"] not in table_values:
+            raise HTTPException(400, "Card rank does not match the table")
 
-        if card["v"] not in ranks:
-            return
+        hand.remove(card)
 
-        hand.pop(idx)
-
-        st["table"].append({
+        state["table"].append({
             "attack": card,
-            "defense": None
+            "defense": None,
         })
 
-        st["phase"] = "defend"
+        state["message"] = f"{name} throws in"
 
-    elif (
-        action in ("take", "pass")
-        and name == st["defender"]
-        and st["phase"] in ("defend", "throw")
-    ):
-        if action == "take":
-            for pair in st["table"]:
-                st["hands"][name].append(pair["attack"])
+    elif action_type == "defend":
+        if name != state["defender"]:
+            raise HTTPException(400, "Only defender can defend")
 
-                if pair["defense"]:
-                    st["hands"][name].append(pair["defense"])
+        if state["phase"] != "defend":
+            raise HTTPException(400, "Cannot defend now")
 
-            st["message"] = "Захисник забрав карти."
+        card = find_card()
 
-        else:
-            if not all(
-                x["defense"]
-                for x in st["table"]
-            ):
-                return
+        target_index = data.get("target", len(state["table"]) - 1)
 
-            st["message"] = "Атака відбита."
+        if (
+            not isinstance(target_index, int)
+            or isinstance(target_index, bool)
+            or not 0 <= target_index < len(state["table"])
+        ):
+            raise HTTPException(400, "Invalid attack index")
 
-        durak_refill(st)
+        pair = state["table"][target_index]
 
-        if action == "take":
-            st["attacker"] = st["defender"]
+        if pair["defense"] is not None:
+            raise HTTPException(400, "Attack already defended")
 
-        durak_next(st)
+        if not card_beats(pair["attack"], card, state["trump"]):
+            raise HTTPException(400, "This card cannot beat the attack")
+
+        hand.remove(card)
+        pair["defense"] = card
+
+        if all(pair["defense"] for pair in state["table"]):
+            state["phase"] = "take_or_end"
+
+        state["message"] = f"{name} defended"
+
+    elif action_type == "take":
+        if name != state["defender"]:
+            raise HTTPException(400, "Only defender can take")
+
+        if state["phase"] not in ("defend", "take_or_end"):
+            raise HTTPException(400, "Cannot take now")
+
+        durak_next(room, defender_took=True)
+
+    elif action_type == "pass":
+        if name == state["defender"]:
+            raise HTTPException(400, "Defender cannot pass")
+
+        if state["phase"] != "defend":
+            raise HTTPException(400, "Cannot pass now")
+
+        if name in state["passed"]:
+            raise HTTPException(400, "Already passed")
+
+        state["passed"].append(name)
+
+        eligible = [
+            player for player in state["players_order"]
+            if player not in (state["attacker"], state["defender"])
+            and state["hands"][player]
+        ]
+
+        if all(
+            player in state["passed"]
+            for player in eligible
+        ):
+            state["message"] = "All players passed"
+
+    elif action_type == "end":
+        if name != state["defender"]:
+            raise HTTPException(400, "Only defender can finish the turn")
+
+        if state["phase"] != "take_or_end":
+            raise HTTPException(400, "You must defend all attacks first")
+
+        durak_next(room, defender_took=False)
+
+    else:
+        raise HTTPException(400, "Unknown Durak action")
 
 
-# =========================
-# TEXAS HOLD'EM
-# =========================
+# ============================================================
+# POKER — TEXAS HOLD'EM
+# ============================================================
 
-def poker_eval(cards):
-    vals = sorted(
-        [c["v"] for c in cards],
-        reverse=True
-    )
+POKER_SUITS = ["♠", "♥", "♦", "♣"]
+POKER_RANKS = list(range(2, 15))
 
-    counts = {
-        v: vals.count(v)
-        for v in set(vals)
+
+def poker_card_name(card):
+    rank_names = {
+        11: "J",
+        12: "Q",
+        13: "K",
+        14: "A",
     }
 
-    groups = sorted(
-        counts,
-        key=lambda v: (counts[v], v),
-        reverse=True
-    )
+    rank = rank_names.get(card["rank"], str(card["rank"]))
+    return f"{rank}{card['suit']}"
 
-    flush = any(
-        sum(c["s"] == s for c in cards) >= 5
-        for s in SUITS
-    )
 
-    unique = sorted(set(vals), reverse=True)
-    straight = 0
+def poker_deck():
+    deck = [
+        {
+            "rank": rank,
+            "suit": suit,
+            "id": f"{rank}{suit}",
+        }
+        for suit in POKER_SUITS
+        for rank in POKER_RANKS
+    ]
+
+    random.shuffle(deck)
+    return deck
+
+
+def poker_straight_high(values):
+    unique = sorted(set(values), reverse=True)
 
     if 14 in unique:
         unique.append(1)
 
-    for i in range(len(unique) - 4):
-        if unique[i] - unique[i + 4] == 4:
-            straight = unique[i]
+    for index in range(len(unique) - 4):
+        sequence = unique[index:index + 5]
+
+        if (
+            len(sequence) == 5
+            and sequence[0] - sequence[4] == 4
+        ):
+            return sequence[0]
+
+    return None
+
+
+def poker_eval(cards):
+    values = [card["rank"] for card in cards]
+
+    counts = {}
+
+    for value in values:
+        counts[value] = counts.get(value, 0) + 1
+
+    groups = sorted(
+        counts.items(),
+        key=lambda item: (item[1], item[0]),
+        reverse=True,
+    )
+
+    flush_suit = None
+
+    for suit in POKER_SUITS:
+        suited = [
+            card["rank"]
+            for card in cards
+            if card["suit"] == suit
+        ]
+
+        if len(suited) >= 5:
+            flush_suit = suit
             break
 
-    if flush and straight:
-        return (8, straight)
+    straight_high = poker_straight_high(values)
 
-    if counts[groups[0]] == 4:
-        return (7, groups[0], groups[1])
+    if flush_suit:
+        flush_values = [
+            card["rank"]
+            for card in cards
+            if card["suit"] == flush_suit
+        ]
 
-    if (
-        counts[groups[0]] == 3
-        and len(groups) > 1
-        and counts[groups[1]] >= 2
-    ):
-        return (6, groups[0], groups[1])
+        flush_straight = poker_straight_high(flush_values)
 
-    if flush:
-        return (5, *sorted(vals, reverse=True)[:5])
+        if flush_straight:
+            return (8, flush_straight)
 
-    if straight:
-        return (4, straight)
+    four = next(
+        (value for value, count in groups if count == 4),
+        None,
+    )
 
-    if counts[groups[0]] == 3:
-        return (
-            3,
-            groups[0],
-            *sorted(
-                [v for v in vals if v != groups[0]],
-                reverse=True
-            )[:2]
+    if four:
+        kicker = max(
+            value for value in values
+            if value != four
+        )
+        return (7, four, kicker)
+
+    triples = sorted(
+        [value for value, count in groups if count >= 3],
+        reverse=True,
+    )
+
+    pairs = sorted(
+        [value for value, count in groups if count >= 2],
+        reverse=True,
+    )
+
+    if triples:
+        full_pair = next(
+            (
+                value for value in pairs
+                if value != triples[0]
+            ),
+            None,
         )
 
-    pairs = [
-        v
-        for v in groups
-        if counts[v] == 2
-    ]
+        if full_pair:
+            return (6, triples[0], full_pair)
+
+    if flush_suit:
+        suited = sorted(
+            [
+                card["rank"]
+                for card in cards
+                if card["suit"] == flush_suit
+            ],
+            reverse=True,
+        )
+
+        return (5, *suited[:5])
+
+    if straight_high:
+        return (4, straight_high)
+
+    if triples:
+        kickers = sorted(
+            [
+                value for value in values
+                if value != triples[0]
+            ],
+            reverse=True,
+        )
+
+        return (3, triples[0], *kickers[:2])
 
     if len(pairs) >= 2:
-        return (
-            2,
-            pairs[0],
-            pairs[1],
-            max(v for v in vals if v not in pairs[:2])
+        high_pair, low_pair = pairs[:2]
+
+        kicker = max(
+            value for value in values
+            if value not in (high_pair, low_pair)
         )
+
+        return (2, high_pair, low_pair, kicker)
 
     if pairs:
-        return (
-            1,
-            pairs[0],
-            *sorted(
-                [v for v in vals if v != pairs[0]],
-                reverse=True
-            )[:3]
+        pair = pairs[0]
+
+        kickers = sorted(
+            [
+                value for value in values
+                if value != pair
+            ],
+            reverse=True,
         )
 
-    return (0, *vals[:5])
+        return (1, pair, *kickers[:3])
+
+    return (0, *sorted(values, reverse=True)[:5])
+
+
+def poker_best_hand(cards):
+    from itertools import combinations
+
+    if len(cards) < 5:
+        return poker_eval(cards)
+
+    return max(
+        poker_eval(list(combo))
+        for combo in combinations(cards, 5)
+    )
 
 
 def start_poker(room):
-    if not 2 <= len(room["players"]) <= 6:
+    count = len(room["players"])
+
+    if not 2 <= count <= 6:
         raise HTTPException(
             400,
-            "Для покеру потрібно 2–6 гравців"
+            "Poker requires 2-6 players"
         )
 
-    deck = make_deck()
+    deck = poker_deck()
 
     hands = {
-        p: [deck.pop(), deck.pop()]
-        for p in room["players"]
+        player: [deck.pop(), deck.pop()]
+        for player in room["players"]
     }
 
-    room["started"] = True
+    chips = {
+        player: 1000
+        for player in room["players"]
+    }
 
+    active = list(room["players"])
+
+    room["started"] = True
     room["state"] = {
         "deck": deck,
         "hands": hands,
         "community": [],
-        "chips": {
-            p: 1000
-            for p in room["players"]
-        },
-        "bets": {
-            p: 0
-            for p in room["players"]
-        },
+        "chips": chips,
+        "bets": {player: 0 for player in active},
         "pot": 0,
-        "turn": 0,
-        "players_order": room["players"][:],
+        "turn": active[0],
+        "players_order": active,
         "folded": [],
         "phase": "preflop",
         "winner": None,
-        "message": (
-            "Texas Hold'em: ставка 10/20. "
-            "Хід першого гравця."
-        ),
-        "acted": []
+        "winners": [],
+        "message": "Texas Hold'em started",
+        "acted": [],
+        "current_bet": 0,
+        "round_start": active[0],
+        "finished": False,
     }
 
 
-def poker_action(room, name, data):
-    st = room["state"]
-
-    if (
-        st["phase"] == "finished"
-        or name in st["folded"]
-    ):
-        return
-
-    alive = [
-        p
-        for p in st["players_order"]
-        if p not in st["folded"]
+def poker_next_active(state, current):
+    order = state["players_order"]
+    active = [
+        player for player in order
+        if player not in state["folded"]
+        and state["chips"][player] > 0
     ]
 
-    if len(alive) == 1:
-        st["winner"] = alive[0]
-        st["chips"][alive[0]] += st["pot"]
-        st["phase"] = "finished"
-        st["message"] = alive[0] + " забирає банк."
-        return
+    if not active:
+        return None
 
-    current = next(
-        (
-            p
-            for p in alive
-            if p not in st["acted"]
-        ),
-        alive[0]
-    )
+    if current not in order:
+        return active[0]
 
-    if name != current:
-        return
+    index = order.index(current)
 
-    action = data.get("type")
-    highest = max(st["bets"].values(), default=0)
-    owed = highest - st["bets"][name]
+    for offset in range(1, len(order) + 1):
+        candidate = order[(index + offset) % len(order)]
 
-    if action == "fold":
-        st["folded"].append(name)
+        if candidate in active:
+            return candidate
 
-    elif action in ("call", "check"):
-        if action == "check" and owed > 0:
-            return
+    return None
 
-        amount = min(owed, st["chips"][name])
 
-        st["chips"][name] -= amount
-        st["bets"][name] += amount
-        st["pot"] += amount
-
-    elif action == "raise":
-        amount = max(20, int(data.get("amount", 20)))
-
-        pay = min(
-            st["chips"][name],
-            owed + amount
-        )
-
-        st["chips"][name] -= pay
-        st["bets"][name] += pay
-        st["pot"] += pay
-        st["acted"] = []
-
-    else:
-        return
-
-    st["acted"].append(name)
-
+def poker_finish_hand(state):
     active = [
-        p
-        for p in alive
-        if p not in st["folded"]
+        player for player in state["players_order"]
+        if player not in state["folded"]
     ]
 
     if len(active) == 1:
-        st["winner"] = active[0]
-        st["chips"][active[0]] += st["pot"]
-        st["phase"] = "finished"
-        st["message"] = active[0] + " забирає банк."
-        return
+        winner = active[0]
+        state["chips"][winner] += state["pot"]
+        state["winners"] = [winner]
+        state["winner"] = winner
+        state["pot"] = 0
+        state["phase"] = "finished"
+        state["finished"] = True
+        state["message"] = f"{winner} wins the pot"
+        return True
 
-    if all(
-        p in st["acted"]
-        and st["bets"][p] == max(st["bets"].values())
-        for p in active
-    ):
-        st["acted"] = []
-        st["bets"] = {
-            p: 0
-            for p in st["players_order"]
-        }
-
-        if st["phase"] == "preflop":
-            st["community"] += st["deck"][:3]
-            del st["deck"][:3]
-            st["phase"] = "flop"
-
-        elif st["phase"] in ("flop", "turn"):
-            st["community"].append(st["deck"].pop())
-
-            st["phase"] = (
-                "turn"
-                if st["phase"] == "flop"
-                else "river"
-            )
-
-        elif st["phase"] == "river":
-            scores = {
-                p: poker_eval(
-                    st["hands"][p] + st["community"]
-                )
-                for p in active
-            }
-
-            best = max(scores.values())
-
-            winners = [
-                p
-                for p, v in scores.items()
-                if v == best
-            ]
-
-            share = st["pot"] // len(winners)
-
-            for p in winners:
-                st["chips"][p] += share
-
-            st["winner"] = winners
-            st["phase"] = "finished"
-            st["message"] = (
-                "Переможець: " + ", ".join(winners)
-            )
-
-    st["message"] = "Хід покеру оновлено."
+    return False
 
 
-# =========================
-# PRIVATE ROOM VIEW
-# =========================
+def poker_showdown(state):
+    active = [
+        player for player in state["players_order"]
+        if player not in state["folded"]
+    ]
 
-def room_view(room, name):
-    result = {
-        "code": room["code"],
-        "game": room["game"],
-        "host": room["host"],
-        "players": room["players"],
-        "open": room["open"],
-        "started": room["started"],
-        "state": room["state"]
+    while len(state["community"]) < 5 and state["deck"]:
+        state["community"].append(state["deck"].pop())
+
+    scores = {
+        player: poker_best_hand(
+            state["hands"][player] + state["community"]
+        )
+        for player in active
     }
 
-    if not room["started"]:
-        return result
+    best_score = max(scores.values())
 
-    st = room["state"]
+    winners = [
+        player for player, score in scores.items()
+        if score == best_score
+    ]
 
-    if room["game"] == "mafia":
-        result["state"] = {
-            "phase": st["phase"],
-            "round": st["round"],
-            "alive": st["alive"],
-            "winner": st["winner"],
-            "last_result": st["last_result"],
-            "eliminated": st["eliminated"],
-            "votes_count": len(st["votes"]),
-            "players_count": len(st["alive"])
-        }
+    if winners:
+        share = state["pot"] // len(winners)
+        remainder = state["pot"] % len(winners)
 
-        result.update(
-            my_role=st["roles"].get(name),
-            my_alive=name in st["alive"],
-            my_action_done=(
-                name in st["night_actions"]
-                if st["phase"] == "night"
-                else name in st["votes"]
-            ),
-            my_check=st["private_checks"].get(name),
-            mafia_teammates=(
-                [
-                    p
-                    for p in st["alive"]
-                    if st["roles"][p] == "mafia"
-                ]
-                if st["roles"].get(name) == "mafia"
-                else []
+        for index, player in enumerate(winners):
+            state["chips"][player] += share + (
+                1 if index < remainder else 0
             )
+
+    state["winners"] = winners
+    state["winner"] = winners[0] if len(winners) == 1 else None
+    state["pot"] = 0
+    state["phase"] = "finished"
+    state["finished"] = True
+    state["message"] = (
+        f"{', '.join(winners)} won the hand"
+    )
+
+
+def poker_advance_phase(state):
+    phases = [
+        "preflop",
+        "flop",
+        "turn",
+        "river",
+    ]
+
+    if state["phase"] not in phases:
+        return
+
+    current_index = phases.index(state["phase"])
+
+    if current_index == 0:
+        state["community"].extend(
+            state["deck"].pop()
+            for _ in range(3)
         )
 
+    elif current_index < 3:
+        state["community"].append(state["deck"].pop())
+
+    else:
+        poker_showdown(state)
+        return
+
+    state["phase"] = phases[current_index + 1]
+    state["bets"] = {
+        player: 0
+        for player in state["players_order"]
+    }
+    state["current_bet"] = 0
+    state["acted"] = []
+
+    active = [
+        player for player in state["players_order"]
+        if player not in state["folded"]
+        and state["chips"][player] > 0
+    ]
+
+    if active:
+        state["turn"] = active[0]
+
+
+def poker_action(room, name, data):
+    state = room["state"]
+
+    if (
+        not room["started"]
+        or state.get("finished")
+        or state["phase"] == "finished"
+    ):
+        raise HTTPException(400, "Poker hand is finished")
+
+    if name != state["turn"]:
+        raise HTTPException(400, "Not your turn")
+
+    if name in state["folded"]:
+        raise HTTPException(400, "You have folded")
+
+    action_type = data.get("type")
+
+    current_bet = state["current_bet"]
+    player_bet = state["bets"][name]
+    to_call = current_bet - player_bet
+
+    if action_type == "fold":
+        state["folded"].append(name)
+        state["acted"].append(name)
+
+        if poker_finish_hand(state):
+            return
+
+    elif action_type == "check":
+        if to_call > 0:
+            raise HTTPException(400, "You must call or fold")
+
+        state["acted"].append(name)
+
+    elif action_type == "call":
+        if to_call <= 0:
+            raise HTTPException(400, "Nothing to call")
+
+        amount = min(to_call, state["chips"][name])
+
+        state["chips"][name] -= amount
+        state["bets"][name] += amount
+        state["pot"] += amount
+        state["acted"].append(name)
+
+    elif action_type == "raise":
+        amount = data.get("amount", 0)
+
+        if (
+            not isinstance(amount, int)
+            or isinstance(amount, bool)
+            or amount <= 0
+        ):
+            raise HTTPException(400, "Invalid raise amount")
+
+        total_needed = to_call + amount
+
+        if total_needed > state["chips"][name]:
+            raise HTTPException(400, "Not enough chips")
+
+        state["chips"][name] -= total_needed
+        state["bets"][name] += total_needed
+        state["pot"] += total_needed
+        state["current_bet"] = state["bets"][name]
+        state["acted"] = [name]
+
+    else:
+        raise HTTPException(400, "Unknown poker action")
+
+    active = [
+        player for player in state["players_order"]
+        if player not in state["folded"]
+    ]
+
+    if len(active) == 1:
+        poker_finish_hand(state)
+        return
+
+    players_to_act = [
+        player for player in active
+        if state["chips"][player] > 0
+    ]
+
+    all_matched = all(
+        state["bets"][player] == state["current_bet"]
+        for player in players_to_act
+    )
+
+    all_acted = all(
+        player in state["acted"]
+        for player in players_to_act
+    )
+
+    if all_matched and all_acted:
+        if not players_to_act:
+            poker_showdown(state)
+            return
+
+        poker_advance_phase(state)
+
+        if state["phase"] == "finished":
+            return
+
+    else:
+        next_player = poker_next_active(state, name)
+
+        if next_player is None:
+            poker_showdown(state)
+            return
+
+        state["turn"] = next_player
+
+    state["message"] = f"{name} performed {action_type}"
+
+# ============================================================
+# PRIVATE ROOM VIEW
+# ============================================================
+
+def room_view(room, name):
+    result = public_room(room)
+    state = room["state"]
+
+    if room["game"] == "mafia":
+        role = state.get("roles", {}).get(name)
+
+        result["state"].update({
+            "my_role": role,
+            "my_alive": name in state.get("alive", []),
+            "my_action_done": name in state.get("action_done", []),
+            "my_check": state.get("private_checks", {}).get(name),
+            "mafia_teammates": [
+                player
+                for player in state.get("alive", [])
+                if (
+                    player != name
+                    and state.get("roles", {}).get(player) == "mafia"
+                )
+            ] if role == "mafia" else [],
+            "my_vote": state.get("votes", {}).get(name),
+        })
+
     elif room["game"] == "durak":
-        result["state"] = {
-            k: v
-            for k, v in st.items()
-            if k not in ("hands", "deck")
-        }
-
-        result["state"]["deck_count"] = len(st["deck"])
-        result["my_hand"] = st["hands"].get(name, [])
-
-        result["hand_counts"] = {
-            p: len(h)
-            for p, h in st["hands"].items()
-        }
+        result["state"].update({
+            "my_hand": state.get("hands", {}).get(name, []),
+            "passed": name in state.get("passed", []),
+        })
 
     elif room["game"] == "poker":
-        result["state"] = {
-            k: v
-            for k, v in st.items()
-            if k not in ("hands", "deck")
-        }
-
-        result["my_hand"] = st["hands"].get(name, [])
-
-        result["hand_counts"] = {
-            p: (
-                len(h)
-                if p in st["folded"]
-                else 2
-            )
-            for p, h in st["hands"].items()
-        }
+        result["state"].update({
+            "my_hand": state.get("hands", {}).get(name, []),
+            "my_bet": state.get("bets", {}).get(name, 0),
+            "my_chips": state.get("chips", {}).get(name, 0),
+            "my_folded": name in state.get("folded", []),
+        })
 
     return result
 
 
-# =========================
-# BROADCAST
-# =========================
+# ============================================================
+# WEBSOCKET BROADCAST
+# ============================================================
 
 async def broadcast(code):
     room = rooms.get(code)
@@ -1540,255 +1982,274 @@ async def broadcast(code):
     if not room:
         return
 
-    dead = []
+    sockets = connections.get(code, {})
 
-    for ws, name in list(
-        connections.get(code, {}).items()
-    ):
+    disconnected = []
+
+    for name, websocket in list(sockets.items()):
         try:
-            await ws.send_json(
-                room_view(room, name)
-            )
-
+            await websocket.send_json({
+                "type": "update",
+                "room": room_view(room, name),
+            })
         except Exception:
-            dead.append(ws)
+            disconnected.append(name)
 
-    for ws in dead:
-        connections.get(code, {}).pop(ws, None)
+    for name in disconnected:
+        sockets.pop(name, None)
+
+    if not sockets:
+        connections.pop(code, None)
 
 
-# =========================
+async def send_error(websocket, message):
+    try:
+        await websocket.send_json({
+            "type": "error",
+            "message": str(message),
+        })
+    except Exception:
+        pass
+
+
+# ============================================================
 # START GAME
-# =========================
+# ============================================================
 
 @app.post("/api/rooms/{code}/start")
-async def start_room(code: str):
-    room = rooms.get(code)
+async def start_game(code: str, data: dict):
+    room = get_room(code)
 
-    if not room:
-        raise HTTPException(404, "Кімнату не знайдено")
+    name = clean_name(str(data.get("name", "")))
+
+    if name != room["host"]:
+        raise HTTPException(403, "Only host can start the game")
 
     if room["started"]:
-        raise HTTPException(400, "Гра вже почалася")
+        raise HTTPException(400, "Game already started")
 
-    if room["game"] == "mafia":
-        start_mafia(room)
+    game = room["game"]
 
-    elif room["game"] == "ttt":
-        if len(room["players"]) != 2:
-            raise HTTPException(
-                400,
-                "Для хрестиків-нуликів потрібно рівно 2 гравці"
-            )
-
+    if game == "ttt":
         start_ttt(room)
 
-    elif room["game"] == "crocodile":
+    elif game == "crocodile":
         start_crocodile(room)
 
-    elif room["game"] == "durak":
+    elif game == "mafia":
+        start_mafia(room)
+
+    elif game == "durak":
         start_durak(room)
 
-    elif room["game"] == "poker":
+    elif game == "poker":
         start_poker(room)
 
     else:
-        raise HTTPException(400, "Невідома гра")
+        raise HTTPException(400, "Unknown game")
 
     await broadcast(code)
 
     return {
-        "ok": True,
-        "started": True
+        "success": True,
+        "room": public_room(room),
     }
 
 
-# =========================
+# ============================================================
 # WEBSOCKET
-# =========================
+# ============================================================
 
 @app.websocket("/ws/{code}")
 async def websocket_room(
-    ws: WebSocket,
+    websocket: WebSocket,
     code: str,
-    name: str = "Гравець"
+    name: str,
 ):
-    await ws.accept()
+    code = code.upper().strip()
 
     room = rooms.get(code)
 
-    if not room or name not in room["players"]:
-        await ws.close(code=1008)
+    if not room:
+        await websocket.accept()
+        await send_error(websocket, "Room not found")
+        await websocket.close()
         return
 
-    connections.setdefault(code, {})[ws] = name
+    name = " ".join(name.strip().split())
+
+    if name not in room["players"]:
+        await websocket.accept()
+        await send_error(websocket, "You are not a member of this room")
+        await websocket.close()
+        return
+
+    await websocket.accept()
+
+    connections.setdefault(code, {})
+    connections[code][name] = websocket
 
     try:
-        await ws.send_json(
-            room_view(room, name)
-        )
+        await websocket.send_json({
+            "type": "update",
+            "room": room_view(room, name),
+        })
 
         while True:
-            data = await ws.receive_json()
-            room = rooms.get(code)
+            data = await websocket.receive_json()
 
-            if not room:
-                break
+            if not isinstance(data, dict):
+                await send_error(websocket, "Invalid message")
+                continue
 
-            # =====================
-            # TIC TAC TOE MOVE
-            # =====================
+            action = data.get("action")
 
-            if (
-                data.get("action") == "move"
-                and room["game"] == "ttt"
-                and room["started"]
-            ):
-                state = room["state"]
-                index = data.get("index")
+            try:
+                room = rooms.get(code)
 
-                if (
-                    not isinstance(index, int)
-                    or not 0 <= index < 9
-                ):
-                    continue
+                if not room:
+                    await send_error(websocket, "Room no longer exists")
+                    break
 
-                board = state["board"]
+                # ------------------------------------------------
+                # TIC TAC TOE
+                # ------------------------------------------------
 
-                if board[index] or state["winner"]:
-                    continue
+                if action == "move":
+                    if room["game"] != "ttt":
+                        raise HTTPException(400, "Wrong game")
 
-                if name.casefold() not in [
-                    p.casefold()
-                    for p in room["players"]
-                ]:
-                    continue
+                    ttt_move(
+                        room,
+                        name,
+                        data.get("index"),
+                    )
 
-                player_index = room["players"].index(name)
+                # ------------------------------------------------
+                # CROCODILE DENTIST
+                # ------------------------------------------------
 
-                symbol = (
-                    "X"
-                    if player_index == 0
-                    else "O"
+                elif action == "crocodile_press":
+                    if room["game"] != "crocodile":
+                        raise HTTPException(400, "Wrong game")
+
+                    crocodile_press(
+                        room,
+                        name,
+                        data.get("tooth"),
+                    )
+
+                # ------------------------------------------------
+                # MAFIA
+                # ------------------------------------------------
+
+                elif action in ("mafia", "vote"):
+                    if room["game"] != "mafia":
+                        raise HTTPException(400, "Wrong game")
+
+                    if action == "vote":
+                        mafia_action(
+                            room,
+                            name,
+                            {
+                                "type": "vote",
+                                "target": data.get("target"),
+                            },
+                        )
+                    else:
+                        mafia_action(
+                            room,
+                            name,
+                            data,
+                        )
+
+                # ------------------------------------------------
+                # DURAK
+                # ------------------------------------------------
+
+                elif action == "durak":
+                    if room["game"] != "durak":
+                        raise HTTPException(400, "Wrong game")
+
+                    durak_action(
+                        room,
+                        name,
+                        data,
+                    )
+
+                # ------------------------------------------------
+                # POKER
+                # ------------------------------------------------
+
+                elif action == "poker":
+                    if room["game"] != "poker":
+                        raise HTTPException(400, "Wrong game")
+
+                    poker_action(
+                        room,
+                        name,
+                        data,
+                    )
+
+                # ------------------------------------------------
+                # UNKNOWN ACTION
+                # ------------------------------------------------
+
+                else:
+                    raise HTTPException(400, "Unknown action")
+
+                await broadcast(code)
+
+            except HTTPException as error:
+                await send_error(
+                    websocket,
+                    error.detail,
                 )
 
-                current = (
-                    "X"
-                    if state["turn"] % 2 == 0
-                    else "O"
+            except Exception as error:
+                print(
+                    f"ZENTRA game error in {code}: {error}"
                 )
 
-                if symbol != current:
-                    continue
-
-                board[index] = symbol
-                state["turn"] += 1
-
-                wins = [
-                    (0, 1, 2),
-                    (3, 4, 5),
-                    (6, 7, 8),
-                    (0, 3, 6),
-                    (1, 4, 7),
-                    (2, 5, 8),
-                    (0, 4, 8),
-                    (2, 4, 6)
-                ]
-
-                for a, b, c in wins:
-                    if (
-                        board[a]
-                        and board[a] == board[b] == board[c]
-                    ):
-                        state["winner"] = board[a]
-                        break
-
-                if (
-                    not state["winner"]
-                    and all(board)
-                ):
-                    state["winner"] = "draw"
-
-                await broadcast(code)
-
-            # =====================
-            # CROCODILE DENTIST
-            # =====================
-
-            elif (
-                data.get("action") == "crocodile_press"
-                and room["game"] == "crocodile"
-                and room["started"]
-            ):
-                crocodile_press(
-                    room,
-                    name,
-                    data.get("tooth")
+                await send_error(
+                    websocket,
+                    "Internal game error",
                 )
-
-                await broadcast(code)
-
-            # =====================
-            # MAFIA NIGHT ACTION
-            # =====================
-
-            elif (
-                data.get("action") == "mafia"
-                and room["game"] == "mafia"
-                and room["started"]
-            ):
-                mafia_action(room, name, data)
-                await broadcast(code)
-
-            # =====================
-            # MAFIA DAY VOTE
-            # =====================
-
-            elif (
-                data.get("action") == "vote"
-                and room["game"] == "mafia"
-                and room["started"]
-            ):
-                mafia_action(
-                    room,
-                    name,
-                    {
-                        "type": "vote",
-                        "target": data.get("target")
-                    }
-                )
-
-                await broadcast(code)
-
-            # =====================
-            # DURAK ACTION
-            # =====================
-
-            elif (
-                data.get("action") == "durak"
-                and room["game"] == "durak"
-                and room["started"]
-            ):
-                durak_action(room, name, data)
-                await broadcast(code)
-
-            # =====================
-            # POKER ACTION
-            # =====================
-
-            elif (
-                data.get("action") == "poker"
-                and room["game"] == "poker"
-                and room["started"]
-            ):
-                poker_action(room, name, data)
-                await broadcast(code)
 
     except WebSocketDisconnect:
         pass
 
     except Exception as error:
-        print("WebSocket error:", error)
+        print(f"ZENTRA WebSocket error: {error}")
 
     finally:
-        connections.get(code, {}).pop(ws, None)
+        current = connections.get(code, {})
+
+        if current.get(name) is websocket:
+            current.pop(name, None)
+
+        if not current:
+            connections.pop(code, None)
+
+
+# ============================================================
+# SERVER STARTUP / SHUTDOWN
+# ============================================================
+
+@app.on_event("startup")
+async def startup_event():
+    print("ZENTRA API started")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    for sockets in list(connections.values()):
+        for websocket in list(sockets.values()):
+            try:
+                await websocket.close()
+            except Exception:
+                pass
+
+    connections.clear()
+
+    print("ZENTRA API stopped")
