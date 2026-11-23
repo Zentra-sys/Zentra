@@ -356,10 +356,28 @@ async function request(path,options={}){
 function showError(message){document.getElementById("profileError").textContent=message}
 
 function updateProfile(){
- if(!profile)return;
- currentName=profile.name;
- const initial=(profile.name||"Z").charAt(0).toUpperCase();
- ["topAvatar","profileAvatar"].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=initial});
+    if(!profile) return;
+
+    const name = profile.name || currentName || "Гравець";
+
+    const hello = document.getElementById("helloName");
+    const profileNameEl = document.getElementById("profileName");
+    const topAvatar = document.getElementById("topAvatar");
+    const profileAvatar = document.getElementById("profileAvatar");
+    const premiumStatus = document.getElementById("premiumStatus");
+
+    if(hello) hello.textContent = name;
+    if(profileNameEl) profileNameEl.textContent = name;
+
+    if(topAvatar) topAvatar.textContent = name.charAt(0).toUpperCase();
+    if(profileAvatar) profileAvatar.textContent = name.charAt(0).toUpperCase();
+
+    if(premiumStatus){
+        premiumStatus.textContent = profile.premium
+            ? "ZENTRA PREMIUM"
+            : "Звичайний акаунт";
+    }
+});
  document.getElementById("helloName").textContent=profile.name;
  document.getElementById("profileName").textContent=profile.name;
  document.getElementById("newNickname").value=profile.name;
