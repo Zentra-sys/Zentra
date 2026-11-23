@@ -423,10 +423,14 @@ async function refreshHome(){
 }
 
 function chooseGame(game){
- document.getElementById("game").value=game;
- showPage("rooms");
-}
+    const selector = document.getElementById("roomGame");
 
+    if(selector){
+        selector.value = game;
+    }
+
+    showPage("rooms");
+}
 async function createRoom(){
  try{
   const name=document.getElementById("roomName").value.trim()||currentName;
