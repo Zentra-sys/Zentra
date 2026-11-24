@@ -379,10 +379,7 @@ function updateProfile(){
     }
 }
 
-function showApp(){
- document.getElementById("profileScreen").classList.add("hidden");
- document.getElementById("appScreen").classList.remove("hidden");
- function updateProfile(){
+function updateProfile(){
     if(!profile) return;
 
     const name = profile.name || currentName || "Гравець";
@@ -406,6 +403,13 @@ function showApp(){
     }
 }
 
+function showApp(){
+    document.getElementById("profileScreen").classList.add("hidden");
+    document.getElementById("appScreen").classList.remove("hidden");
+
+    updateProfile();
+    setLanguage(lang);
+}
 async function saveProfile(){
     const input = document.getElementById("nickname");
     const error = document.getElementById("profileError");
