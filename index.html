@@ -391,9 +391,28 @@ function updateProfile(){
 function showApp(){
  document.getElementById("profileScreen").classList.add("hidden");
  document.getElementById("appScreen").classList.remove("hidden");
- updateProfile();
- setLanguage(lang);
- refreshHome();
+ function updateProfile(){
+    if(!profile) return;
+
+    const name = profile.name || currentName || "Гравець";
+
+    const hello = document.getElementById("helloName");
+    const profileNameEl = document.getElementById("profileName");
+    const topAvatar = document.getElementById("topAvatar");
+    const profileAvatar = document.getElementById("profileAvatar");
+    const premiumStatus = document.getElementById("premiumStatus");
+
+    if(hello) hello.textContent = name;
+    if(profileNameEl) profileNameEl.textContent = name;
+
+    if(topAvatar) topAvatar.textContent = name.charAt(0).toUpperCase();
+    if(profileAvatar) profileAvatar.textContent = name.charAt(0).toUpperCase();
+
+    if(premiumStatus){
+        premiumStatus.textContent = profile.premium
+            ? "ZENTRA PREMIUM"
+            : "Звичайний акаунт";
+    }
 }
 
 async function saveProfile(){
