@@ -377,15 +377,6 @@ function updateProfile(){
             ? "ZENTRA PREMIUM"
             : "Звичайний акаунт";
     }
-});
- document.getElementById("helloName").textContent=profile.name;
- document.getElementById("profileName").textContent=profile.name;
- document.getElementById("newNickname").value=profile.name;
- document.getElementById("roomName").value=profile.name;
- const premiumStatus=document.getElementById("premiumStatus");
- const premiumButton=document.getElementById("premiumButton");
- if(premiumStatus)premiumStatus.textContent=profile.premium?"PREMIUM АКТИВНИЙ":"Преміум ще не придбано";
- if(premiumButton){premiumButton.disabled=!!profile.premium;premiumButton.textContent=profile.premium?"PREMIUM АКТИВНИЙ":"Придбати за ⭐ 20";}
 }
 
 function showApp(){
